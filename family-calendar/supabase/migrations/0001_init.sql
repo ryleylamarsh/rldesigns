@@ -92,7 +92,7 @@ create table if not exists app_settings (
   idle_timeout_minutes int not null default 10,
   dark_mode_start time, -- null = auto (fixed 8pm-7am heuristic in the app)
   dark_mode_end time,
-  dark_mode_override text check (dark_mode_override in ('auto','on','off')) default 'auto',
+  dark_mode_override text check (dark_mode_override in ('auto','on','off')) default 'on',
   countdown_label text,
   countdown_date date,
   updated_at timestamptz not null default now()

@@ -6,7 +6,7 @@
 <title>Lamarsh Calendar</title>
 <meta name="description" content="Family wall calendar — shared calendar, chores, and lists.">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#fcfcfb">
+<meta name="theme-color" content="#0e0d16">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Calendar">
@@ -78,35 +78,70 @@
     grid-template-areas: "nav header" "nav main";
   }
 
-  /* Header — clock+weather inline, date below; the calendar toolbar joins
-     this same row (prev/next, family filter, Week/Month) when Calendar is
-     the active view, wrapping onto its own line in portrait's narrower width */
+  /* Header — a permanent-dark "wallpaper" hero: time+date, current weather
+     + a short forecast strip, with a glass toolbar (nav/filter/Week-Month)
+     for the Calendar view floating on top. This panel does not follow the
+     light/dark toggle — like a lock-screen wallpaper it's always dark;
+     the toggle governs the content area below it instead. */
   header#header{
-    grid-area: header; display:flex; align-items:center; gap:1.2rem;
-    padding: .7rem 1.4rem; background:var(--surface); border-bottom:1px solid var(--border);
-    flex-wrap:wrap;
+    grid-area: header; display:flex; flex-direction:column; gap:.7rem;
+    padding: 1rem 1.4rem; position:relative; overflow:hidden; color:#fff;
+    background:
+      radial-gradient(ellipse 120% 140% at 15% -20%, rgba(90,70,190,.55), transparent 60%),
+      radial-gradient(ellipse 100% 120% at 100% 0%, rgba(40,150,180,.35), transparent 55%),
+      linear-gradient(160deg, #191534 0%, #100e26 55%, #0a0917 100%);
   }
-  .header-date{ display:flex; flex-direction:column; gap:.1rem; flex-shrink:0; }
-  .clock-row{ display:flex; align-items:baseline; gap:.8rem; }
-  .header-date .clock{ font-size:1.8rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
-  .header-date .subline{ font-size:.9rem; color:var(--ink-secondary); font-weight:600; }
-  .weather{ display:flex; align-items:center; gap:.35rem; font-size:1rem; font-weight:600; color:var(--ink-secondary); }
-  .weather .wicon{ font-size:1.2rem; line-height:1; }
-  .weather .wtemp{ font-size:1rem; }
+  .hero-main{ display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:relative; z-index:1; }
+  .hero-clock-block{ display:flex; flex-direction:column; gap:.15rem; }
+  .hero-clock-block .clock{ font-size:2.3rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; color:#fff; }
+  .hero-clock-block .subline{ font-size:.9rem; color:rgba(255,255,255,.68); font-weight:600; }
 
-  .header-cal-toolbar{ display:flex; align-items:center; gap:1rem; flex:1; flex-wrap:wrap; min-width:0; }
+  .hero-weather-block{ display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+  .weather-now{ display:flex; align-items:center; gap:.5rem; }
+  .weather-now .wicon svg{ width:2.1rem; height:2.1rem; display:block; }
+  .weather-now .wtemp{ font-size:1.5rem; font-weight:700; }
+  .weather-strip{ display:flex; gap:.85rem; padding-left:1rem; border-left:1px solid rgba(255,255,255,.16); }
+  .weather-day{ display:flex; flex-direction:column; align-items:center; gap:.15rem; font-size:.66rem; color:rgba(255,255,255,.6); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
+  .weather-day .wicon svg{ width:1.15rem; height:1.15rem; color:rgba(255,255,255,.82); display:block; }
+  .weather-day .wtemp{ font-size:.72rem; color:#fff; font-weight:700; text-transform:none; letter-spacing:0; }
 
-  /* Family filter — lives in the header toolbar, right of the nav arrows */
-  #family-filter{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; flex:1; }
+  .header-cal-toolbar{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; position:relative; z-index:1; }
+
+  /* Glass ("liquid glass") controls — frosted, translucent, thin light
+     border + inner highlight. Touch targets stay at --tap-min regardless
+     of the compact look; density comes from styling, not smaller hitboxes. */
+  .glass-group{
+    display:flex; align-items:center; gap:.3rem; background:rgba(255,255,255,.12);
+    backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+    border:1px solid rgba(255,255,255,.2); border-radius:999px; padding:.25rem .25rem .25rem 1rem;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 4px 14px rgba(0,0,0,.28);
+  }
+  .glass-group .today-label{ font-size:.82rem; font-weight:700; color:#fff; min-width:5rem; text-align:center; }
+  .glass-icon-btn{
+    display:flex; align-items:center; justify-content:center; width:var(--tap-min); height:var(--tap-min);
+    border-radius:50%; border:none; background:rgba(255,255,255,.14); color:#fff; cursor:pointer; font-size:1.1rem; flex-shrink:0;
+  }
+  .glass-icon-btn:active{ transform:scale(.92); }
+  .glass-segmented{
+    display:flex; background:rgba(255,255,255,.12); backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+    border:1px solid rgba(255,255,255,.2); border-radius:999px; padding:.25rem;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 4px 14px rgba(0,0,0,.28);
+  }
+  .glass-segmented button{ border:none; background:none; min-height:calc(var(--tap-min) - .5rem); padding:0 1.1rem; border-radius:999px; font-weight:700; color:rgba(255,255,255,.68); cursor:pointer; font-size:.85rem; }
+  .glass-segmented button.is-active{ background:rgba(255,255,255,.94); color:#171335; }
+
+  /* Family filter — small glass avatar chips, lives in the header toolbar */
+  #family-filter{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
   .filter-chip{
-    display:flex; align-items:center; gap:.4rem; min-height:var(--tap-min); padding:.35rem .8rem .35rem .35rem;
-    border-radius:999px; border:2px solid transparent; background:var(--surface-2); cursor:pointer;
-    box-shadow:var(--shadow); opacity:1; transition: opacity .2s ease, border-color .2s ease, transform .15s ease;
+    display:flex; align-items:center; justify-content:center; min-width:var(--tap-min); height:var(--tap-min); padding:.2rem;
+    border-radius:999px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.12);
+    backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+    cursor:pointer; opacity:1; transition: opacity .2s ease, transform .15s ease;
   }
-  .filter-chip.is-off{ opacity:.4; }
-  .filter-chip:active{ transform:scale(.96); }
-  .filter-chip .avatar{ width:36px; height:36px; }
-  .filter-chip .fname{ font-size:.95rem; font-weight:600; }
+  .filter-chip.is-off{ opacity:.35; }
+  .filter-chip:active{ transform:scale(.94); }
+  .filter-chip .avatar{ width:1.9rem; height:1.9rem; font-size:.72rem; }
+  .filter-chip .fname{ display:none; }
 
   .avatar{
     width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
@@ -167,61 +202,58 @@
   .today-label{ font-weight:700; font-size:1.05rem; }
 
   /* Calendar shell: fills the view, no page-level scroll except where noted.
-     Toolbar now lives in the header, so this view is just the grid/agenda. */
+     Toolbar now lives in the header, so this view is just the grid. */
   #view-calendar.view:not([hidden]){ display:flex; flex-direction:column; overflow:hidden; }
-  #calendar-week, #calendar-month-wrap{ flex:1; min-height:0; }
+  #calendar-week, #calendar-month{ flex:1; min-height:0; }
 
-  /* Calendar: week — a fixed 4x2 grid (8 slots, 7 filled) so the whole week
-     reads at a glance in one layout, same shape both orientations */
-  .week-grid{ display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(2,1fr); gap:.6rem; height:100%; }
+  /* Calendar: week — a single full-width row, 7 columns starting from
+     today (Today, Tomorrow, then weekday names), hairline dividers only,
+     no card boxes/shadows — same shape both orientations */
+  .week-grid{ display:grid; grid-template-columns:repeat(7,1fr); height:100%; border-top:1px solid var(--gridline); }
   .day-col{
-    background:var(--surface); border:1px solid var(--gridline); border-radius:var(--radius-sm); padding:.6rem;
-    display:flex; flex-direction:column; gap:.4rem; min-width:0; min-height:0;
+    border-right:1px solid var(--gridline); padding:.8rem .7rem; display:flex; flex-direction:column; gap:.5rem;
+    min-width:0; min-height:0;
   }
-  .day-col.is-today{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, var(--surface)); }
-  .day-col.is-drop-target{ outline:2px dashed var(--accent); outline-offset:-2px; background:color-mix(in srgb, var(--accent) 10%, var(--surface)); }
-  .day-col .col-head{ display:flex; align-items:baseline; gap:.4rem; padding-bottom:.3rem; border-bottom:1px solid var(--gridline); flex-shrink:0; }
-  .day-col .col-head .dname{ font-weight:700; font-size:.85rem; }
-  .day-col .col-head .dnum{ font-size:.8rem; color:var(--ink-muted); font-weight:600; }
-  .day-col .col-events{ display:flex; flex-direction:column; gap:.35rem; overflow-y:auto; min-height:0; }
+  .day-col:last-child{ border-right:none; }
+  .day-col.is-drop-target{ background:color-mix(in srgb, var(--accent) 10%, transparent); }
+  .day-col .col-head{ display:flex; flex-direction:column; gap:.05rem; flex-shrink:0; }
+  .day-col .col-head .dnum{ font-size:1.1rem; font-weight:800; line-height:1; }
+  .day-col .col-head .dname{ font-size:.72rem; color:var(--ink-muted); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
+  .day-col.is-today .col-head .dname{ color:var(--accent); }
+  .day-col .col-events{ display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; min-height:0; }
 
-  /* Shared compact event row — used in week day-cards and the month agenda panel */
+  /* Shared compact event row — text directly on the flat background, a
+     colored bar carries identity instead of a filled pill/card */
   .event-row{
     display:flex; flex-direction:column; align-items:flex-start; gap:.05rem; width:100%; text-align:left;
-    background:var(--bg); border:none; border-left:3px solid var(--accent); border-radius:6px; padding:.4rem .55rem;
+    background:none; border:none; border-left:3px solid var(--accent); border-radius:0; padding:.1rem 0 .1rem .55rem;
     cursor:pointer; font-family:inherit;
   }
-  .event-row .ername{ font-size:.82rem; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
-  .event-row .ertime{ font-size:.72rem; color:var(--ink-secondary); font-weight:600; }
+  .event-row .ername{ font-size:.8rem; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+  .event-row .ertime{ font-size:.7rem; color:var(--ink-secondary); font-weight:600; }
   .event-row[data-synced="0"]{ touch-action:none; }
   .event-row.is-dragging{ opacity:.4; }
 
-  /* Calendar: month — condensed thin-line grid + a persistent agenda panel */
-  .month-wrap{ display:flex; flex-direction:column; gap:.8rem; height:100%; min-height:0; }
-  #app[data-orientation="landscape"] .month-wrap{ flex-direction:row; }
-  .month-grid-pane{ flex:3; min-height:0; min-width:0; display:flex; flex-direction:column; }
-  .month-agenda-pane{
-    flex:1; min-height:0; min-width:0; display:flex; flex-direction:column;
-    background:var(--surface); border-radius:var(--radius-md); padding:.9rem;
-  }
+  /* Calendar: month — plain thin-line grid, no card, no side panel.
+     Each cell carries its own compact colored event pills. */
   .month-grid{
     display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:auto repeat(6,1fr);
-    border-top:1px solid var(--gridline); border-left:1px solid var(--gridline); flex:1; min-height:0;
+    border-top:1px solid var(--gridline); border-left:1px solid var(--gridline); height:100%;
   }
-  .month-dow{ text-align:center; font-size:.68rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding:.3rem 0; }
+  .month-dow{ text-align:center; font-size:.68rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding:.4rem 0; }
   .month-cell{
     border-right:1px solid var(--gridline); border-bottom:1px solid var(--gridline); display:flex; flex-direction:column;
-    align-items:flex-start; padding:.3rem .4rem; cursor:pointer; gap:.25rem; min-height:0; min-width:0;
+    align-items:flex-start; padding:.4rem .45rem; cursor:pointer; gap:.2rem; min-height:0; min-width:0; overflow:hidden;
   }
   .month-cell.is-today .mnum{ color:var(--accent); }
-  .month-cell.is-selected{ background:color-mix(in srgb, var(--accent) 12%, var(--surface)); }
   .month-cell.is-other-month{ opacity:.35; }
-  .month-cell .mnum{ font-weight:700; font-size:.85rem; }
-  .month-cell .mdots{ display:flex; gap:.2rem; flex-wrap:wrap; }
-  .month-cell .mdots span{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .month-cell .mnum{ font-weight:700; font-size:.82rem; flex-shrink:0; }
+  .month-cell .mpills{ display:flex; flex-direction:column; gap:2px; width:100%; overflow:hidden; }
+  .month-cell .mpill{ font-size:.6rem; font-weight:700; color:#fff; border-radius:4px; padding:1px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .month-cell .mmore{ font-size:.58rem; color:var(--ink-muted); font-weight:700; padding-left:5px; }
 
-  .agenda-date-label{ font-weight:700; font-size:1rem; margin-bottom:.6rem; flex-shrink:0; }
-  .agenda-list{ display:flex; flex-direction:column; gap:.4rem; overflow-y:auto; flex:1; min-height:0; }
+  .agenda-date-label{ font-weight:700; font-size:1.1rem; margin-bottom:.8rem; flex-shrink:0; }
+  .agenda-list{ display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; flex:1; min-height:0; }
 
   /* Chores --------------------------------------------------------------- */
   .chore-section{ margin-bottom:1.4rem; }
@@ -347,11 +379,13 @@
   .empty-state{ color:var(--ink-muted); text-align:center; padding:3rem 1rem; font-size:1rem; }
 
   /* Local sandbox / demo-mode badge — floats over the content area (#main),
-     not the viewport, so it never competes with the header's own content */
+     bottom-left so it never competes with the header hero or the day-column
+     headers (top-right was tried first and clipped into Wed/Thu/Fri in
+     portrait's 7-up grid) or the FAB (bottom-right) */
   #demo-badge{
-    position:absolute; top:.6rem; right:.6rem; z-index:6; background:var(--warning); color:#1a1a19;
+    position:absolute; bottom:.6rem; left:.6rem; z-index:6; background:var(--warning); color:#1a1a19;
     font-weight:700; font-size:.65rem; letter-spacing:.02em; text-transform:uppercase; padding:.35rem .7rem;
-    border-radius:999px; box-shadow:var(--shadow); display:none; cursor:default;
+    border-radius:999px; box-shadow:var(--shadow); display:none; cursor:default; opacity:.9;
   }
   #demo-badge.is-visible{ display:block; }
 </style>
@@ -360,22 +394,28 @@
 
 <div id="app" data-orientation="portrait">
   <header id="header">
-    <div class="header-date">
-      <div class="clock-row">
+    <div class="hero-main">
+      <div class="hero-clock-block">
         <span class="clock" id="hdr-clock">--:--</span>
-        <div class="weather" id="hdr-weather"><span class="wicon">—</span><span class="wtemp"></span></div>
+        <span class="subline" id="hdr-date">Sunday, January 1</span>
       </div>
-      <span class="subline" id="hdr-date">Sunday, January 1</span>
+      <div class="hero-weather-block">
+        <div class="weather-now" id="hdr-weather-now">
+          <span class="wicon" id="hdr-wicon"></span>
+          <span class="wtemp" id="hdr-wtemp">--°</span>
+        </div>
+        <div class="weather-strip" id="hdr-weather-strip"></div>
+      </div>
     </div>
 
     <div class="header-cal-toolbar" id="header-cal-toolbar">
-      <div class="toolbar-nav">
-        <button class="icon-btn" id="cal-prev" aria-label="Previous">‹</button>
+      <div class="glass-group">
+        <button class="glass-icon-btn" id="cal-prev" aria-label="Previous">‹</button>
         <span class="today-label" id="cal-range-label">This Week</span>
-        <button class="icon-btn" id="cal-next" aria-label="Next">›</button>
+        <button class="glass-icon-btn" id="cal-next" aria-label="Next">›</button>
       </div>
       <div id="family-filter"></div>
-      <div class="segmented" id="cal-mode-toggle">
+      <div class="glass-segmented" id="cal-mode-toggle">
         <button data-mode="week" class="is-active">Week</button>
         <button data-mode="month">Month</button>
       </div>
@@ -389,15 +429,7 @@
 
     <section id="view-calendar" class="view">
       <div id="calendar-week"></div>
-      <div id="calendar-month-wrap" class="month-wrap" style="display:none">
-        <div class="month-grid-pane">
-          <div class="month-grid" id="calendar-month"></div>
-        </div>
-        <div class="month-agenda-pane">
-          <div class="agenda-date-label" id="agenda-date-label">Today</div>
-          <div class="agenda-list" id="calendar-agenda-list"></div>
-        </div>
-      </div>
+      <div id="calendar-month" class="month-grid" style="display:none"></div>
       <button class="fab" id="fab-add-event" aria-label="Add event">+</button>
     </section>
 
@@ -462,8 +494,8 @@
       <div class="settings-section">
         <h2>Dark mode</h2>
         <div class="toggle-group" id="darkmode-toggle">
-          <button data-val="auto" class="is-selected">Auto (sunset)</button>
-          <button data-val="on">Always on</button>
+          <button data-val="on" class="is-selected">Always on</button>
+          <button data-val="auto">Auto (sunset)</button>
           <button data-val="off">Always off</button>
         </div>
       </div>
@@ -504,6 +536,15 @@
       <span class="label">Settings</span>
     </button>
   </nav>
+</div>
+
+<!-- Day agenda modal (opened by tapping a month-view cell) -->
+<div class="modal-overlay" id="modal-day-agenda">
+  <div class="modal">
+    <div class="agenda-date-label" id="day-agenda-title">Today</div>
+    <div class="agenda-list" id="day-agenda-list"></div>
+    <div class="modal-actions"><button class="btn primary" id="day-agenda-close">Close</button></div>
+  </div>
 </div>
 
 <!-- Event detail modal -->
@@ -886,7 +927,7 @@ function seedLocalData(){
   const cd = new Date(now); cd.setDate(cd.getDate()+12);
   return {
     members, events, chores, completions: [], lists, listItems,
-    settings: { idle_timeout_minutes:10, dark_mode_override:'auto', countdown_label:'Family Camping Trip', countdown_date: `${cd.getFullYear()}-${String(cd.getMonth()+1).padStart(2,'0')}-${String(cd.getDate()).padStart(2,'0')}` },
+    settings: { idle_timeout_minutes:10, dark_mode_override:'on', countdown_label:'Family Camping Trip', countdown_date: `${cd.getFullYear()}-${String(cd.getMonth()+1).padStart(2,'0')}-${String(cd.getDate()).padStart(2,'0')}` },
     icsStatus: [], photos: [],
   };
 }
@@ -1024,14 +1065,13 @@ const state = {
   lists: [],
   listItems: {}, // list_id -> [items]
   activeListId: null,
-  settings: { idle_timeout_minutes:10, dark_mode_override:'auto', countdown_label:null, countdown_date:null },
+  settings: { idle_timeout_minutes:10, dark_mode_override:'on', countdown_label:null, countdown_date:null },
   icsStatus: [],
   photos: [],
   activeFilter: new Set(), // empty set = show all
   calMode: 'week',
-  weekStart: startOfWeek(new Date()),
+  weekAnchor: new Date(), // week view is a rolling 7 days starting here (today by default)
   monthDate: new Date(),
-  selectedDate: new Date(), // which day the month view's agenda panel shows
 };
 
 function el(id){ return document.getElementById(id); }
@@ -1088,19 +1128,42 @@ function tickClock(){
 setInterval(tickClock, 1000);
 tickClock();
 
-const WMOICONS = {
-  0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌦️',
-  61:'🌧️',63:'🌧️',65:'🌧️',71:'🌨️',73:'🌨️',75:'🌨️',80:'🌦️',81:'🌧️',82:'⛈️',
-  95:'⛈️',96:'⛈️',99:'⛈️'
-};
+// Minimal line-style weather icons (own artwork — inline SVG, no external
+// asset/EPS import), matching the nav icons' stroke style.
+function weatherIconSvg(code){
+  const a = `viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"`;
+  if(code===0) return `<svg ${a}><circle cx="12" cy="12" r="4.5"/><path d="M12 3v2.2M12 18.8V21M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M3 12h2.2M18.8 12H21M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></svg>`;
+  if(code<=2) return `<svg ${a}><circle cx="8" cy="9" r="3.2"/><path d="M8 3.6v1.3M3.3 9h1.3M12.9 5.1l-.9.9M3.9 5.1l.9.9"/><path d="M7 18h10.5a3.5 3.5 0 0 0 .4-6.98A5 5 0 0 0 7.7 12.6"/></svg>`;
+  if(code===3) return `<svg ${a}><path d="M6.5 18h10.5a3.5 3.5 0 0 0 0-7 5.5 5.5 0 0 0-10.6 1.8A3.5 3.5 0 0 0 6.5 18z"/></svg>`;
+  if(code===45||code===48) return `<svg ${a}><path d="M4 9.5h12.5a3.5 3.5 0 1 0-.9-6.9"/><path d="M2.5 13.5h15M2.5 17.5h10"/></svg>`;
+  if((code>=51&&code<=57)||(code>=80&&code<=82)) return `<svg ${a}><path d="M6.5 14.5h10.5a3.5 3.5 0 0 0 0-7 5.5 5.5 0 0 0-10.6 1.8A3.5 3.5 0 0 0 6.5 14.5z"/><path d="M8 18.5l-1 2.2M12 18.5l-1 2.2M16 18.5l-1 2.2"/></svg>`;
+  if(code>=61&&code<=67) return `<svg ${a}><path d="M6.5 13.5h10.5a3.5 3.5 0 0 0 0-7 5.5 5.5 0 0 0-10.6 1.8A3.5 3.5 0 0 0 6.5 13.5z"/><path d="M8 17v3.5M12 17v3.5M16 17v3.5"/></svg>`;
+  if(code>=71&&code<=77) return `<svg ${a}><path d="M6.5 12.5h10.5a3.5 3.5 0 0 0 0-7 5.5 5.5 0 0 0-10.6 1.8A3.5 3.5 0 0 0 6.5 12.5z"/><path d="M8 16.2v.01M12 16.2v.01M16 16.2v.01M8 19.7v.01M12 19.7v.01M16 19.7v.01"/></svg>`;
+  if(code>=95) return `<svg ${a}><path d="M6.5 12.5h10.5a3.5 3.5 0 0 0 0-7 5.5 5.5 0 0 0-10.6 1.8A3.5 3.5 0 0 0 6.5 12.5z"/><path d="M13 14.5l-3 4h3l-2.2 4.2"/></svg>`;
+  return `<svg ${a}><circle cx="12" cy="12" r="4"/></svg>`;
+}
+function renderWeatherNow(code, temp){
+  el('hdr-wicon').innerHTML = weatherIconSvg(code);
+  el('hdr-wtemp').textContent = `${temp}°`;
+}
+function renderWeatherStrip(days){
+  // days: [{label, code, temp}, ...]
+  el('hdr-weather-strip').innerHTML = days.map(d=>
+    `<div class="weather-day"><span class="wday">${escapeHtml(d.label)}</span><span class="wicon">${weatherIconSvg(d.code)}</span><span class="wtemp">${d.temp}°</span></div>`
+  ).join('');
+}
 function showDemoWeather(){
   // Sandboxed previews (and offline/no-geolocation cases) can't reach a
   // real weather API — show a placeholder rather than leaving this blank,
   // so the widget's design is visible even when live data isn't. A real
   // deployment (Cloudflare Pages, no CSP sandbox) replaces this with a
   // live reading on the next successful fetch.
-  el('hdr-weather').innerHTML = `<span class="wicon">⛅</span><span class="wtemp">22°</span>`;
-  el('hdr-weather').title = 'Demo reading — needs a real deployment (this preview blocks outside network calls) and location access.';
+  renderWeatherNow(2, 22);
+  el('hdr-weather-now').title = 'Demo reading — needs a real deployment (this preview blocks outside network calls) and location access.';
+  renderWeatherStrip([
+    {label:'Fri', code:1, temp:19}, {label:'Sat', code:3, temp:17}, {label:'Sun', code:0, temp:21},
+    {label:'Mon', code:61, temp:15}, {label:'Tue', code:2, temp:18},
+  ]);
 }
 async function loadWeather(){
   try{
@@ -1117,12 +1180,18 @@ async function loadWeather(){
       });
     }
     if(lat==null || lon==null){ showDemoWeather(); return; }
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=celsius`);
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max&forecast_days=6&temperature_unit=celsius&timezone=auto`);
     const data = await res.json();
-    const code = data.current.weather_code;
-    const temp = Math.round(data.current.temperature_2m);
-    el('hdr-weather').removeAttribute('title');
-    el('hdr-weather').innerHTML = `<span class="wicon">${WMOICONS[code]||'🌡️'}</span><span class="wtemp">${temp}°</span>`;
+    el('hdr-weather-now').removeAttribute('title');
+    renderWeatherNow(data.current.weather_code, Math.round(data.current.temperature_2m));
+    if(data.daily && data.daily.time.length>1){
+      const days = data.daily.time.slice(1,6).map((dateStr,i)=>({
+        label: new Date(dateStr+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'}),
+        code: data.daily.weather_code[i+1],
+        temp: Math.round(data.daily.temperature_2m_max[i+1]),
+      }));
+      renderWeatherStrip(days);
+    }
   }catch(e){ console.warn('weather failed, showing demo reading', e); showDemoWeather(); }
 }
 loadWeather();
@@ -1148,13 +1217,13 @@ function renderCountdown(){
    Dark mode
    ========================================================================= */
 function applyDarkModeSchedule(now){
-  const mode = state.settings.dark_mode_override || 'auto';
+  const mode = state.settings.dark_mode_override || 'on';
   let dark;
   if(mode==='on') dark = true;
   else if(mode==='off') dark = false;
   else { const h = now.getHours(); dark = (h>=20 || h<7); }
   document.documentElement.setAttribute('data-theme', dark ? 'dark':'light');
-  document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#1a1a19':'#fcfcfb');
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0e0d16':'#f5f4fb');
 }
 
 /* =========================================================================
@@ -1188,25 +1257,25 @@ document.querySelectorAll('#cal-mode-toggle button').forEach(btn=>{
     btn.classList.add('is-active');
     const mode = btn.dataset.mode;
     // Keep the two views looking at the same stretch of time as you switch.
-    if(mode==='month') state.monthDate = new Date(state.weekStart);
-    else state.weekStart = startOfWeek(state.monthDate);
+    if(mode==='month') state.monthDate = new Date(state.weekAnchor);
+    else state.weekAnchor = new Date(state.monthDate);
     state.calMode = mode;
     el('calendar-week').style.display = mode==='week' ? '' : 'none';
-    el('calendar-month-wrap').style.display = mode==='month' ? '' : 'none';
+    el('calendar-month').style.display = mode==='month' ? '' : 'none';
     loadCalendarData();
   });
 });
 el('cal-prev').addEventListener('click', ()=> calNav(-1));
 el('cal-next').addEventListener('click', ()=> calNav(1));
 function calNav(dir){
-  if(state.calMode==='week') state.weekStart = addDays(state.weekStart, 7*dir);
+  if(state.calMode==='week') state.weekAnchor = addDays(state.weekAnchor, 7*dir);
   else { const d = new Date(state.monthDate); d.setMonth(d.getMonth()+dir); state.monthDate = d; }
   loadCalendarData();
 }
 
 async function loadCalendarData(){
   let rangeStart, rangeEnd;
-  if(state.calMode==='week'){ rangeStart = state.weekStart; rangeEnd = addDays(state.weekStart,7); }
+  if(state.calMode==='week'){ rangeStart = state.weekAnchor; rangeEnd = addDays(state.weekAnchor,7); }
   else { rangeStart = startOfWeek(new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1)); rangeEnd = addDays(rangeStart, 42); }
 
   state.events = await db.listEvents(rangeStart.toISOString(), rangeEnd.toISOString());
@@ -1215,12 +1284,11 @@ async function loadCalendarData(){
 
 function renderCalendarView(){
   if(state.calMode==='week'){
-    el('cal-range-label').textContent = `${state.weekStart.toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${addDays(state.weekStart,6).toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
+    el('cal-range-label').textContent = `${state.weekAnchor.toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${addDays(state.weekAnchor,6).toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
     renderWeek();
   } else {
     el('cal-range-label').textContent = state.monthDate.toLocaleDateString(undefined,{month:'long', year:'numeric'});
     renderMonth();
-    renderAgenda();
   }
 }
 
@@ -1295,14 +1363,16 @@ function renderWeek(){
   container.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'week-grid';
+  const today = new Date(), tomorrow = addDays(today,1);
   for(let i=0;i<7;i++){
-    const day = addDays(state.weekStart, i);
-    const today = sameDay(day, new Date());
+    const day = addDays(state.weekAnchor, i);
+    const isToday = sameDay(day, today);
+    const label = isToday ? 'Today' : sameDay(day, tomorrow) ? 'Tomorrow' : day.toLocaleDateString(undefined,{weekday:'long'});
     const dayEvents = eventsOn(day);
     const col = document.createElement('div');
-    col.className = 'day-col' + (today?' is-today':'');
+    col.className = 'day-col' + (isToday?' is-today':'');
     col.dataset.date = localDateStr(day);
-    col.innerHTML = `<div class="col-head"><span class="dname">${day.toLocaleDateString(undefined,{weekday:'short'})}</span><span class="dnum">${day.getDate()}</span></div>
+    col.innerHTML = `<div class="col-head"><span class="dnum">${day.getDate()}</span><span class="dname">${label}</span></div>
       <div class="col-events">${dayEvents.length? dayEvents.map(eventRowHtml).join('') : '<div class="empty-state" style="padding:.6rem 0;font-size:.85rem;">No events</div>'}</div>`;
     wrap.appendChild(col);
   }
@@ -1311,14 +1381,18 @@ function renderWeek(){
   makeEventDraggable(wrap);
 }
 
-function renderAgenda(){
-  const isToday = sameDay(state.selectedDate, new Date());
-  el('agenda-date-label').textContent = state.selectedDate.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'}) + (isToday ? ' · Today' : '');
-  const container = el('calendar-agenda-list');
-  const dayEvents = eventsOn(state.selectedDate);
-  container.innerHTML = dayEvents.length ? dayEvents.map(eventRowHtml).join('') : '<div class="empty-state">No events</div>';
-  bindEventRows(container);
+function openDayAgendaModal(dateStr){
+  const [y,mo,d] = dateStr.split('-').map(Number);
+  const day = new Date(y, mo-1, d);
+  const isToday = sameDay(day, new Date());
+  el('day-agenda-title').textContent = day.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'}) + (isToday ? ' · Today' : '');
+  const dayEvents = eventsOn(day);
+  const list = el('day-agenda-list');
+  list.innerHTML = dayEvents.length ? dayEvents.map(eventRowHtml).join('') : '<div class="empty-state">No events</div>';
+  bindEventRows(list);
+  el('modal-day-agenda').classList.add('is-open');
 }
+el('day-agenda-close').addEventListener('click', ()=> el('modal-day-agenda').classList.remove('is-open'));
 
 function renderMonth(){
   const container = el('calendar-month');
@@ -1329,23 +1403,20 @@ function renderMonth(){
     const day = addDays(gridStart, i);
     const inMonth = day.getMonth()===state.monthDate.getMonth();
     const today = sameDay(day, new Date());
-    const selected = sameDay(day, state.selectedDate);
     const dayEvents = eventsOn(day);
-    const dots = dayEvents.slice(0,4).map(e=>{
+    const shown = dayEvents.slice(0,3);
+    const pills = shown.map(e=>{
       const m = memberById(e.family_member_id);
-      return `<span style="background:${m?colorFor(m.color_hex):'var(--ink-muted)'}"></span>`;
+      const color = m ? colorFor(m.color_hex) : 'var(--ink-muted)';
+      return `<span class="mpill" style="background:${color}">${escapeHtml(e.title)}</span>`;
     }).join('');
-    html += `<div class="month-cell${today?' is-today':''}${selected?' is-selected':''}${inMonth?'':' is-other-month'}" data-date="${localDateStr(day)}">
-      <span class="mnum">${day.getDate()}</span><span class="mdots">${dots}</span></div>`;
+    const more = dayEvents.length>3 ? `<span class="mmore">+${dayEvents.length-3} more</span>` : '';
+    html += `<div class="month-cell${today?' is-today':''}${inMonth?'':' is-other-month'}" data-date="${localDateStr(day)}">
+      <span class="mnum">${day.getDate()}</span><div class="mpills">${pills}${more}</div></div>`;
   }
   container.innerHTML = html;
   container.querySelectorAll('.month-cell').forEach(cell=>{
-    cell.addEventListener('click', ()=>{
-      const [y,mo,d] = cell.dataset.date.split('-').map(Number);
-      state.selectedDate = new Date(y, mo-1, d);
-      renderMonth();
-      renderAgenda();
-    });
+    cell.addEventListener('click', ()=> openDayAgendaModal(cell.dataset.date));
   });
 }
 
@@ -1395,7 +1466,7 @@ function openEventEditModal(event){
     row.appendChild(b);
   });
 
-  const start = event ? new Date(event.start_at) : new Date(state.selectedDate || new Date());
+  const start = event ? new Date(event.start_at) : new Date();
   if(!event) start.setHours(9,0,0,0);
   el('event-date-input').value = localDateStr(start);
   const isAllDay = event ? !!event.all_day : false;
@@ -1692,7 +1763,7 @@ async function loadSettingsScreen(){
   renderIcsSettings();
   renderPhotoSettings();
   el('idle-timeout-input').value = state.settings.idle_timeout_minutes || 10;
-  document.querySelectorAll('#darkmode-toggle button').forEach(b=> b.classList.toggle('is-selected', b.dataset.val === (state.settings.dark_mode_override||'auto')));
+  document.querySelectorAll('#darkmode-toggle button').forEach(b=> b.classList.toggle('is-selected', b.dataset.val === (state.settings.dark_mode_override||'on')));
   el('countdown-label-input').value = state.settings.countdown_label || '';
   el('countdown-date-input').value = state.settings.countdown_date || '';
   state.icsStatus = await db.getIcsStatus();
