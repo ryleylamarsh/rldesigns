@@ -13,6 +13,33 @@ supabase/migrations/0001_init.sql   schema + RLS for a new Supabase project
 supabase/functions/sync-ics/     Edge Function that syncs Google Calendar → events table
 ```
 
+## 0. Try it in the local sandbox first
+
+Open `index.html` directly — as a local file, via `python3 -m http.server` in
+this folder, or the published Artifact preview — with no setup at all. If the
+`SUPABASE_URL`/`SUPABASE_ANON_KEY` constants at the top of the script are
+still their placeholder values, the app automatically runs against a
+**local, in-browser sandbox** instead of Supabase:
+
+- No network calls, no Supabase project, no Cloudflare deploy.
+- Seeded with a few demo family members, events, chores, and a grocery list
+  so every screen has something to look at immediately.
+- All reads/writes go to `localStorage` (key `fc_local_db_v1`) instead of a
+  server — refresh the page and your test edits are still there; clear that
+  key (or your browser's site data for the page) to reset to the seed data.
+- A "LOCAL SANDBOX" badge appears top-right as a reminder nothing is being
+  saved anywhere real.
+- Drag-to-reorder (chores, list items) uses a small built-in pointer-based
+  implementation rather than a CDN library, so the sandbox has zero external
+  script dependencies — it also works inside network-locked/CSP-sandboxed
+  previews.
+
+This is the place to click through the whole app — add/edit family members,
+check off chores, drag-reorder, add list items, flip dark mode, open the
+screensaver — before touching any real infrastructure. Once you're happy
+with it, move to step 1 and fill in the two config constants; nothing else
+in `index.html` needs to change to go from sandbox to a real backend.
+
 ## 1. Create the Supabase project
 
 Create a **new, separate** Supabase project (don't reuse another project's keys).

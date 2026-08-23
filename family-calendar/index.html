@@ -89,12 +89,9 @@
   .clock{ font-size:1.7rem; font-weight:700; font-variant-numeric:tabular-nums; }
 
   #family-filter{
-    display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; padding: 0 1.4rem .9rem;
-    background:var(--surface);
+    display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; flex-basis:100%;
   }
-  #app[data-orientation="portrait"] #family-filter{ grid-area: unset; }
   #app[data-orientation="landscape"] header#header{ align-items:flex-start; flex-direction:column; gap:.6rem; }
-  #app[data-orientation="landscape"] #family-filter{ padding: 0 1.4rem .8rem; }
   .filter-chip{
     display:flex; align-items:center; gap:.4rem; min-height:var(--tap-min); padding:.35rem .8rem .35rem .35rem;
     border-radius:999px; border:2px solid transparent; background:var(--surface-2); cursor:pointer;
@@ -222,7 +219,7 @@
     display:flex; align-items:center; gap:.8rem; background:var(--surface); border-radius:var(--radius-md);
     padding:.7rem .9rem; margin-bottom:.5rem; min-height:var(--tap-primary);
   }
-  .chore-row .drag-handle{ color:var(--ink-muted); font-size:1.3rem; cursor:grab; padding:.4rem; }
+  .drag-handle{ color:var(--ink-muted); font-size:1.3rem; cursor:grab; padding:.4rem; touch-action:none; }
   .checkbox{
     width:2rem; height:2rem; border-radius:8px; border:2px solid var(--baseline); flex-shrink:0; cursor:pointer;
     display:flex; align-items:center; justify-content:center; background:var(--surface-2);
@@ -336,9 +333,19 @@
 
   /* misc */
   .empty-state{ color:var(--ink-muted); text-align:center; padding:3rem 1rem; font-size:1rem; }
+
+  /* Local sandbox / demo-mode badge --------------------------------------- */
+  #demo-badge{
+    position:fixed; top:.6rem; right:.6rem; z-index:60; background:var(--warning); color:#1a1a19;
+    font-weight:700; font-size:.68rem; letter-spacing:.02em; text-transform:uppercase; padding:.4rem .8rem;
+    border-radius:999px; box-shadow:var(--shadow); display:none; cursor:default;
+  }
+  #demo-badge.is-visible{ display:block; }
 </style>
 </head>
 <body>
+
+<div id="demo-badge">Local sandbox — not saved to any server</div>
 
 <div id="app" data-orientation="portrait">
   <header id="header">
@@ -350,11 +357,10 @@
       <div class="clock" id="hdr-clock">--:--</div>
       <div class="weather" id="hdr-weather"><span class="wicon">—</span><span class="wtemp"></span></div>
     </div>
+    <div id="family-filter"></div>
   </header>
 
   <div id="countdown-banner"></div>
-
-  <div id="family-filter"></div>
 
   <main id="main">
 
@@ -571,9 +577,13 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
+// Supabase JS is loaded dynamically (see initDb() below) only when a real
+// project is configured, so the app has zero external dependencies while
+// running in local sandbox/demo mode — including inside a CSP-sandboxed
+// preview that blocks third-party script loads entirely. Drag-reorder uses
+// a small built-in pointer-based helper instead of a CDN library for the
+// same reason (see makeSortable()).
 (function(){
 "use strict";
 
@@ -618,14 +628,256 @@ function colorFor(hex){
 }
 
 /* =========================================================================
-   Supabase client
+   Data layer — real Supabase backend, or a local browser-only sandbox
    ========================================================================= */
-const sb = (SUPABASE_URL.startsWith("http"))
-  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
+const IS_CONFIGURED = SUPABASE_URL.startsWith("http") && !/REPLACE_/.test(SUPABASE_ANON_KEY);
+const LOCAL_KEY = "fc_local_db_v1";
+let db; // assigned by initDb() during boot()
 
-if(!sb){
-  console.warn("Supabase is not configured yet — fill in SUPABASE_URL / SUPABASE_ANON_KEY at the top of index.html.");
+function loadScript(src){
+  return new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function initDb(){
+  if(IS_CONFIGURED){
+    await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js");
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    db = supabaseDb(sb);
+  } else {
+    console.info("Family Calendar: no Supabase project configured — running in local sandbox/demo mode. Data lives only in this browser's storage. Fill in SUPABASE_URL/SUPABASE_ANON_KEY at the top of index.html to connect a real backend (see README.md).");
+    el('demo-badge').classList.add('is-visible');
+    db = localDb();
+  }
+}
+
+// --- Supabase-backed implementation -----------------------------------
+function supabaseDb(sb){
+  const unwrap = async (p)=>{ const { data, error } = await p; if(error){ console.warn(error); return null; } return data; };
+  return {
+    async listMembers(){ return (await unwrap(sb.from('family_members').select('*').order('sort_order',{ascending:true}))) || []; },
+    async addMember(payload){ await sb.from('family_members').insert(payload); },
+    async updateMember(id,payload){ await sb.from('family_members').update(payload).eq('id',id); },
+    async deleteMember(id){ await sb.from('family_members').delete().eq('id',id); },
+
+    async listEvents(startISO,endISO){ return (await unwrap(sb.from('events').select('*').gte('start_at',startISO).lt('start_at',endISO).order('start_at',{ascending:true}))) || []; },
+
+    async listChores(){ return (await unwrap(sb.from('chores').select('*').order('sort_order',{ascending:true}))) || []; },
+    async addChore(payload){ await sb.from('chores').insert(payload); },
+    async updateChore(id,payload){ await sb.from('chores').update(payload).eq('id',id); },
+    async deleteChore(id){ await sb.from('chores').delete().eq('id',id); },
+    async reorderChores(ids){ await Promise.all(ids.map((id,idx)=> sb.from('chores').update({ sort_order: idx }).eq('id', id))); },
+
+    async listCompletions(){ return (await unwrap(sb.from('chore_completions').select('*'))) || []; },
+    async addCompletion(choreId,dateStr){ await sb.from('chore_completions').insert({ chore_id: choreId, completed_date: dateStr }); },
+    async removeCompletions(choreId,opts){
+      let q = sb.from('chore_completions').delete().eq('chore_id', choreId);
+      if(opts.date) q = q.eq('completed_date', opts.date);
+      else if(opts.sinceDate) q = q.gte('completed_date', opts.sinceDate);
+      await q;
+    },
+
+    async listLists(){ return (await unwrap(sb.from('lists').select('*').order('sort_order',{ascending:true}))) || []; },
+    async addList(payload){ await sb.from('lists').insert(payload); },
+    async deleteList(id){ await sb.from('lists').delete().eq('id',id); },
+
+    async listItems(listId){ return (await unwrap(sb.from('list_items').select('*').eq('list_id',listId).order('sort_order',{ascending:true}))) || []; },
+    async addItem(listId,text,sortOrder){ await sb.from('list_items').insert({ list_id:listId, text, sort_order:sortOrder }); },
+    async updateItem(id,patch){ await sb.from('list_items').update(patch).eq('id',id); },
+    async deleteItem(id){ await sb.from('list_items').delete().eq('id',id); },
+    async reorderItems(listId, ids){ await Promise.all(ids.map((id,idx)=> sb.from('list_items').update({ sort_order: idx }).eq('id', id))); },
+    async clearCompletedItems(listId){ await sb.from('list_items').delete().eq('list_id',listId).eq('done', true); },
+    async countItems(listId){ const { count } = await sb.from('list_items').select('*',{count:'exact',head:true}).eq('list_id',listId); return count||0; },
+
+    async getSettings(){ return (await unwrap(sb.from('app_settings').select('*').eq('id',1).maybeSingle())) || null; },
+    async updateSettings(patch){ await sb.from('app_settings').update(patch).eq('id',1); },
+
+    async getIcsStatus(){ return (await unwrap(sb.from('ics_sources_status').select('*'))) || []; },
+    async upsertIcsSource(memberId,url){ await sb.rpc('upsert_ics_source', { p_family_member_id: memberId, p_ics_url: url }); },
+    async deleteIcsSource(memberId){ await sb.rpc('delete_ics_source', { p_family_member_id: memberId }); },
+
+    async listPhotos(){ return (await unwrap(sb.from('screensaver_photos').select('*').order('sort_order',{ascending:true}))) || []; },
+    async addPhotoFile(file, sortOrder){
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name}`;
+      const { error } = await sb.storage.from('screensaver-photos').upload(path, file);
+      if(error){ console.warn(error); return; }
+      await sb.from('screensaver_photos').insert({ storage_path: path, sort_order: sortOrder });
+    },
+    async deletePhoto(photo){
+      await sb.storage.from('screensaver-photos').remove([photo.storage_path]);
+      await sb.from('screensaver_photos').delete().eq('id', photo.id);
+    },
+    getPhotoUrl(photo){ return sb.storage.from('screensaver-photos').getPublicUrl(photo.storage_path).data.publicUrl; },
+
+    subscribe(cb){
+      const channel = sb.channel('public-changes');
+      let debounce = null;
+      ['family_members','events','chores','chore_completions','lists','list_items','app_settings'].forEach(table=>{
+        channel.on('postgres_changes', { event:'*', schema:'public', table }, ()=>{
+          clearTimeout(debounce);
+          debounce = setTimeout(()=> cb(table), 400);
+        });
+      });
+      channel.subscribe();
+      return ()=> sb.removeChannel(channel);
+    },
+  };
+}
+
+// --- Local sandbox implementation (no network, no server) --------------
+function seedLocalData(){
+  const uid = ()=> (crypto.randomUUID ? crypto.randomUUID() : 'id-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+  const now = new Date();
+  const day = (offset,h,m)=>{ const d = new Date(now); d.setDate(d.getDate()+offset); d.setHours(h,m,0,0); return d.toISOString(); };
+  const members = [
+    { id: uid(), name:'Alex',  color_hex:'#2a78d6', initials:'AL', sort_order:0 },
+    { id: uid(), name:'Jamie', color_hex:'#eb6834', initials:'JA', sort_order:1 },
+    { id: uid(), name:'Riley', color_hex:'#1baf7a', initials:'RI', sort_order:2 },
+  ];
+  const events = [
+    { id: uid(), family_member_id: members[0].id, title:'Dentist appointment', start_at: day(1,9,30),  end_at: day(1,10,15), all_day:false, location:'Main St Dental' },
+    { id: uid(), family_member_id: members[1].id, title:'Soccer practice',     start_at: day(2,16,0),  end_at: day(2,17,30), all_day:false, location:'City Park' },
+    { id: uid(), family_member_id: members[2].id, title:'School play',        start_at: day(3,18,0),  end_at: day(3,19,30), all_day:false, location:'' },
+    { id: uid(), family_member_id: null,          title:'Family dinner',      start_at: day(5,18,30), end_at: day(5,20,0),  all_day:false, location:'' },
+  ];
+  const chores = [
+    { id: uid(), title:'Take out trash', assignee_id: members[0].id, recurrence:'daily',  sort_order:0 },
+    { id: uid(), title:'Feed the dog',   assignee_id: members[1].id, recurrence:'daily',  sort_order:0 },
+    { id: uid(), title:'Clean room',     assignee_id: members[2].id, recurrence:'weekly', sort_order:0 },
+  ];
+  const groceryId = uid();
+  const lists = [ { id: groceryId, name:'Groceries', color_hex:'#1baf7a', sort_order:0 } ];
+  const listItems = { [groceryId]: [
+    { id: uid(), list_id: groceryId, text:'Milk',  done:false, sort_order:0 },
+    { id: uid(), list_id: groceryId, text:'Eggs',  done:false, sort_order:1 },
+    { id: uid(), list_id: groceryId, text:'Bread', done:true,  sort_order:2 },
+  ]};
+  const cd = new Date(now); cd.setDate(cd.getDate()+12);
+  return {
+    members, events, chores, completions: [], lists, listItems,
+    settings: { idle_timeout_minutes:10, dark_mode_override:'auto', countdown_label:'Family Camping Trip', countdown_date: `${cd.getFullYear()}-${String(cd.getMonth()+1).padStart(2,'0')}-${String(cd.getDate()).padStart(2,'0')}` },
+    icsStatus: [], photos: [],
+  };
+}
+function localDb(){
+  let raw = null;
+  try{ raw = JSON.parse(localStorage.getItem(LOCAL_KEY)); }catch(e){ raw = null; }
+  const data = raw || seedLocalData();
+  const persist = ()=>{ try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); }catch(e){ console.warn('local sandbox storage full', e); } };
+  if(!raw) persist();
+  const uid = ()=> (crypto.randomUUID ? crypto.randomUUID() : 'id-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+  const listeners = new Set();
+  const notify = (table)=> listeners.forEach(cb=> cb(table));
+
+  return {
+    async listMembers(){ return data.members.slice().sort((a,b)=>a.sort_order-b.sort_order); },
+    async addMember(payload){ data.members.push({ id:uid(), sort_order:data.members.length, ...payload }); persist(); notify('family_members'); },
+    async updateMember(id,payload){ const m=data.members.find(x=>x.id===id); if(m) Object.assign(m,payload); persist(); notify('family_members'); },
+    async deleteMember(id){
+      data.members = data.members.filter(m=>m.id!==id);
+      data.chores.forEach(c=>{ if(c.assignee_id===id) c.assignee_id=null; });
+      data.events.forEach(e=>{ if(e.family_member_id===id) e.family_member_id=null; });
+      data.icsStatus = data.icsStatus.filter(s=>s.family_member_id!==id);
+      persist(); notify('family_members');
+    },
+
+    async listEvents(startISO,endISO){ return data.events.filter(e=> e.start_at>=startISO && e.start_at<endISO).sort((a,b)=> a.start_at<b.start_at?-1:1); },
+
+    async listChores(){ return data.chores.slice().sort((a,b)=>a.sort_order-b.sort_order); },
+    async addChore(payload){ data.chores.push({ id:uid(), sort_order:data.chores.length, ...payload }); persist(); notify('chores'); },
+    async updateChore(id,payload){ const c=data.chores.find(x=>x.id===id); if(c) Object.assign(c,payload); persist(); notify('chores'); },
+    async deleteChore(id){ data.chores = data.chores.filter(c=>c.id!==id); data.completions = data.completions.filter(c=>c.chore_id!==id); persist(); notify('chores'); },
+    async reorderChores(ids){ ids.forEach((id,idx)=>{ const c=data.chores.find(x=>x.id===id); if(c) c.sort_order=idx; }); persist(); notify('chores'); },
+
+    async listCompletions(){ return data.completions.slice(); },
+    async addCompletion(choreId,dateStr){
+      if(!data.completions.some(c=>c.chore_id===choreId && c.completed_date===dateStr)) data.completions.push({ id:uid(), chore_id:choreId, completed_date:dateStr });
+      persist(); notify('chore_completions');
+    },
+    async removeCompletions(choreId,opts){
+      data.completions = data.completions.filter(c=>{
+        if(c.chore_id!==choreId) return true;
+        if(opts.date) return c.completed_date!==opts.date;
+        if(opts.sinceDate) return c.completed_date<opts.sinceDate;
+        return false;
+      });
+      persist(); notify('chore_completions');
+    },
+
+    async listLists(){ return data.lists.slice().sort((a,b)=>a.sort_order-b.sort_order); },
+    async addList(payload){ const id=uid(); data.lists.push({ id, sort_order:data.lists.length, ...payload }); data.listItems[id]=[]; persist(); notify('lists'); },
+    async deleteList(id){ data.lists = data.lists.filter(l=>l.id!==id); delete data.listItems[id]; persist(); notify('lists'); },
+
+    async listItems(listId){ return (data.listItems[listId]||[]).slice().sort((a,b)=>a.sort_order-b.sort_order); },
+    async addItem(listId,text,sortOrder){ (data.listItems[listId] = data.listItems[listId]||[]).push({ id:uid(), list_id:listId, text, done:false, sort_order:sortOrder }); persist(); notify('list_items'); },
+    async updateItem(id,patch){ for(const arr of Object.values(data.listItems)){ const it=arr.find(i=>i.id===id); if(it){ Object.assign(it,patch); break; } } persist(); notify('list_items'); },
+    async deleteItem(id){ for(const key of Object.keys(data.listItems)){ data.listItems[key] = data.listItems[key].filter(i=>i.id!==id); } persist(); notify('list_items'); },
+    async reorderItems(listId, ids){ ids.forEach((id,idx)=>{ const it=(data.listItems[listId]||[]).find(i=>i.id===id); if(it) it.sort_order=idx; }); persist(); notify('list_items'); },
+    async clearCompletedItems(listId){ data.listItems[listId] = (data.listItems[listId]||[]).filter(i=>!i.done); persist(); notify('list_items'); },
+    async countItems(listId){ return (data.listItems[listId]||[]).length; },
+
+    async getSettings(){ return data.settings; },
+    async updateSettings(patch){ Object.assign(data.settings, patch); persist(); notify('app_settings'); },
+
+    async getIcsStatus(){ return data.icsStatus; },
+    async upsertIcsSource(memberId,url){
+      let s = data.icsStatus.find(x=>x.family_member_id===memberId);
+      const row = { id: s?s.id:uid(), family_member_id:memberId, last_polled_at:new Date().toISOString(), last_status:'demo (sync runs once deployed)' };
+      if(s) Object.assign(s,row); else data.icsStatus.push(row);
+      persist(); notify('ics');
+    },
+    async deleteIcsSource(memberId){ data.icsStatus = data.icsStatus.filter(s=>s.family_member_id!==memberId); persist(); notify('ics'); },
+
+    async listPhotos(){ return data.photos.slice().sort((a,b)=>a.sort_order-b.sort_order); },
+    async addPhotoFile(file, sortOrder){
+      const dataUrl = await new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
+      data.photos.push({ id:uid(), storage_path:dataUrl, sort_order:sortOrder });
+      persist(); notify('photos');
+    },
+    async deletePhoto(photo){ data.photos = data.photos.filter(p=>p.id!==photo.id); persist(); notify('photos'); },
+    getPhotoUrl(photo){ return photo.storage_path; },
+
+    subscribe(cb){
+      listeners.add(cb);
+      const onStorage = (e)=>{ if(e.key===LOCAL_KEY){ try{ Object.assign(data, JSON.parse(e.newValue)); }catch(err){} cb('external'); } };
+      window.addEventListener('storage', onStorage);
+      return ()=>{ listeners.delete(cb); window.removeEventListener('storage', onStorage); };
+    },
+  };
+}
+
+// --- Tiny built-in drag-to-reorder (pointer events, no CDN library) -----
+function makeSortable(container, itemSelector, handleSelector, onReorder){
+  container.addEventListener('pointerdown', (e)=>{
+    const handle = e.target.closest(handleSelector);
+    if(!handle) return;
+    const dragEl = handle.closest(itemSelector);
+    if(!dragEl) return;
+    let moved = false;
+    const startY = e.clientY;
+    try{ dragEl.setPointerCapture(e.pointerId); }catch(err){}
+    dragEl.style.position = 'relative'; dragEl.style.zIndex = '10';
+
+    function onMove(ev){
+      if(Math.abs(ev.clientY - startY) > 6) moved = true;
+      if(!moved) return;
+      const items = Array.from(container.querySelectorAll(itemSelector)).filter(i=>i!==dragEl);
+      const after = items.find(i=>{ const r = i.getBoundingClientRect(); return ev.clientY < r.top + r.height/2; });
+      if(after) container.insertBefore(dragEl, after);
+      else container.appendChild(dragEl);
+    }
+    function onUp(){
+      dragEl.style.zIndex = ''; dragEl.style.position = '';
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if(moved) onReorder(Array.from(container.querySelectorAll(itemSelector)).map(i=>i.dataset.id));
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  });
 }
 
 /* =========================================================================
@@ -811,17 +1063,12 @@ function calNav(dir){
 }
 
 async function loadCalendarData(){
-  if(!sb) return;
   let rangeStart, rangeEnd;
   if(state.calMode==='week'){ rangeStart = state.weekStart; rangeEnd = addDays(state.weekStart,7); }
   else if(state.calMode==='day'){ rangeStart = new Date(state.dayDate); rangeStart.setHours(0,0,0,0); rangeEnd = addDays(rangeStart,1); }
   else { rangeStart = new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1); rangeStart = startOfWeek(rangeStart); rangeEnd = addDays(rangeStart, 42); }
 
-  const { data, error } = await sb.from('events').select('*')
-    .gte('start_at', rangeStart.toISOString()).lt('start_at', rangeEnd.toISOString())
-    .order('start_at', { ascending:true });
-  if(error){ console.warn(error); return; }
-  state.events = data||[];
+  state.events = await db.listEvents(rangeStart.toISOString(), rangeEnd.toISOString());
   renderCalendarView();
 }
 
@@ -941,13 +1188,9 @@ el('ev-close').addEventListener('click', ()=> el('modal-event').classList.remove
    Chores
    ========================================================================= */
 async function loadChores(){
-  if(!sb) return;
-  const [{data:chores}, {data:completions}] = await Promise.all([
-    sb.from('chores').select('*').order('sort_order',{ascending:true}),
-    sb.from('chore_completions').select('*'),
-  ]);
-  state.chores = chores||[];
-  state.completions = completions||[];
+  const [chores, completions] = await Promise.all([ db.listChores(), db.listCompletions() ]);
+  state.chores = chores;
+  state.completions = completions;
   renderChores();
 }
 function isChoreDone(chore){
@@ -974,8 +1217,11 @@ function renderChores(){
       </ul>`;
     container.appendChild(section);
     const listEl = section.querySelector('.chore-items');
-    if(mine.length && window.Sortable){
-      Sortable.create(listEl, { handle:'.drag-handle', animation:150, onEnd: onChoreReorder });
+    if(mine.length){
+      makeSortable(listEl, '.chore-row', '.drag-handle', (ids)=>{
+        db.reorderChores(ids);
+        state.chores.forEach(c=>{ const idx = ids.indexOf(c.id); if(idx>-1) c.sort_order = idx; });
+      });
     }
   });
   container.querySelectorAll('.checkbox').forEach(cb=> cb.addEventListener('click', ()=> toggleChore(cb.dataset.id)));
@@ -998,20 +1244,13 @@ async function toggleChore(id){
   if(!chore) return;
   const done = isChoreDone(chore);
   if(done){
-    let q = sb.from('chore_completions').delete().eq('chore_id', id);
-    if(chore.recurrence==='daily') q = q.eq('completed_date', localDateStr());
-    else if(chore.recurrence==='weekly') q = q.gte('completed_date', localDateStr(startOfWeek(new Date())));
-    await q;
+    if(chore.recurrence==='daily') await db.removeCompletions(id, { date: localDateStr() });
+    else if(chore.recurrence==='weekly') await db.removeCompletions(id, { sinceDate: localDateStr(startOfWeek(new Date())) });
+    else await db.removeCompletions(id, { all:true });
   } else {
-    await sb.from('chore_completions').insert({ chore_id:id, completed_date: localDateStr() });
+    await db.addCompletion(id, localDateStr());
   }
   loadChores();
-}
-async function onChoreReorder(evt){
-  const memberId = evt.target.dataset.member;
-  const ids = Array.from(evt.target.querySelectorAll('.chore-row')).map(r=>r.dataset.id);
-  await Promise.all(ids.map((id,idx)=> sb.from('chores').update({ sort_order: idx }).eq('id', id)));
-  state.chores.forEach(c=>{ const idx = ids.indexOf(c.id); if(idx>-1) c.sort_order = idx; });
 }
 
 let editingChoreId = null;
@@ -1046,14 +1285,14 @@ el('chore-save-btn').addEventListener('click', async ()=>{
   const assignee = el('chore-assignee-row').querySelector('.is-selected');
   const recurrence = el('chore-recurrence-row').querySelector('.is-selected').dataset.val;
   const payload = { title, assignee_id: assignee?assignee.dataset.id:null, recurrence };
-  if(editingChoreId) await sb.from('chores').update(payload).eq('id', editingChoreId);
-  else await sb.from('chores').insert({ ...payload, sort_order: state.chores.length });
+  if(editingChoreId) await db.updateChore(editingChoreId, payload);
+  else await db.addChore({ ...payload, sort_order: state.chores.length });
   el('modal-chore').classList.remove('is-open');
   loadChores();
 });
 el('chore-delete-btn').addEventListener('click', ()=>{
   confirmDialog('Delete chore?', 'This removes it and its completion history.', async ()=>{
-    await sb.from('chores').delete().eq('id', editingChoreId);
+    await db.deleteChore(editingChoreId);
     el('modal-chore').classList.remove('is-open');
     loadChores();
   });
@@ -1063,23 +1302,19 @@ el('chore-delete-btn').addEventListener('click', ()=>{
    Lists
    ========================================================================= */
 async function loadLists(){
-  if(!sb) return;
-  const { data } = await sb.from('lists').select('*').order('sort_order',{ascending:true});
-  state.lists = data||[];
+  state.lists = await db.listLists();
   if(state.activeListId && state.lists.some(l=>l.id===state.activeListId)) openList(state.activeListId);
   else renderListsGrid();
 }
 async function fetchListCounts(){
   const counts = {};
-  for(const l of state.lists){
-    const { count } = await sb.from('list_items').select('*',{count:'exact',head:true}).eq('list_id', l.id);
-    counts[l.id] = count||0;
-  }
+  for(const l of state.lists) counts[l.id] = await db.countItems(l.id);
   return counts;
 }
 async function renderListsGrid(){
   el('lists-overview').style.display = '';
   el('list-detail').classList.remove('is-open');
+  el('fab-add-list').style.display = '';
   state.activeListId = null;
   const grid = el('lists-grid');
   grid.innerHTML = '';
@@ -1104,9 +1339,9 @@ async function openList(id){
   if(!list) return renderListsGrid();
   el('lists-overview').style.display = 'none';
   el('list-detail').classList.add('is-open');
+  el('fab-add-list').style.display = 'none';
   el('list-detail-title').textContent = list.name;
-  const { data } = await sb.from('list_items').select('*').eq('list_id', id).order('sort_order',{ascending:true});
-  state.listItems[id] = data||[];
+  state.listItems[id] = await db.listItems(id);
   renderListItems();
 }
 function renderListItems(){
@@ -1114,27 +1349,24 @@ function renderListItems(){
   const container = el('list-items');
   container.innerHTML = items.length ? items.map(i=>`
     <div class="list-item-row${i.done?' is-done':''}" data-id="${i.id}">
+      <span class="drag-handle">⋮⋮</span>
       <span class="checkbox${i.done?' is-checked':''}" data-id="${i.id}">${i.done?'✓':''}</span>
       <span class="itext">${escapeHtml(i.text)}</span>
       <button class="item-delete" data-id="${i.id}">✕</button>
     </div>`).join('') : '<div class="empty-state">No items yet</div>';
   container.querySelectorAll('.checkbox').forEach(cb=> cb.addEventListener('click', ()=> toggleListItem(cb.dataset.id)));
   container.querySelectorAll('.item-delete').forEach(b=> b.addEventListener('click', ()=> deleteListItem(b.dataset.id)));
-  if(window.Sortable) Sortable.create(container, { animation:150, onEnd: onListItemReorder });
+  if(items.length) makeSortable(container, '.list-item-row', '.drag-handle', ids=> db.reorderItems(state.activeListId, ids));
 }
 async function toggleListItem(id){
   const list = state.listItems[state.activeListId];
   const item = list.find(i=>i.id===id);
-  await sb.from('list_items').update({ done: !item.done }).eq('id', id);
+  await db.updateItem(id, { done: !item.done });
   openList(state.activeListId);
 }
 async function deleteListItem(id){
-  await sb.from('list_items').delete().eq('id', id);
+  await db.deleteItem(id);
   openList(state.activeListId);
-}
-async function onListItemReorder(evt){
-  const ids = Array.from(evt.target.querySelectorAll('.list-item-row')).map(r=>r.dataset.id);
-  await Promise.all(ids.map((id,idx)=> sb.from('list_items').update({ sort_order: idx }).eq('id', id)));
 }
 el('list-back').addEventListener('click', renderListsGrid);
 el('add-item-btn').addEventListener('click', addListItem);
@@ -1144,19 +1376,19 @@ async function addListItem(){
   const text = input.value.trim();
   if(!text || !state.activeListId) return;
   const items = state.listItems[state.activeListId]||[];
-  await sb.from('list_items').insert({ list_id: state.activeListId, text, sort_order: items.length });
+  await db.addItem(state.activeListId, text, items.length);
   input.value = '';
   openList(state.activeListId);
 }
 el('clear-completed').addEventListener('click', async ()=>{
   if(!state.activeListId) return;
-  await sb.from('list_items').delete().eq('list_id', state.activeListId).eq('done', true);
+  await db.clearCompletedItems(state.activeListId);
   openList(state.activeListId);
 });
 el('list-delete-btn').addEventListener('click', ()=>{
   if(!state.activeListId) return;
   confirmDialog('Delete this list?', 'All items in it will be deleted too.', async ()=>{
-    await sb.from('lists').delete().eq('id', state.activeListId);
+    await db.deleteList(state.activeListId);
     loadLists();
   });
 });
@@ -1178,7 +1410,7 @@ el('list-save-btn').addEventListener('click', async ()=>{
   const name = el('list-name-input').value.trim();
   if(!name) return;
   const color = el('list-color-row').querySelector('.is-selected').dataset.hex;
-  await sb.from('lists').insert({ name, color_hex: color, sort_order: state.lists.length });
+  await db.addList({ name, color_hex: color, sort_order: state.lists.length });
   el('modal-list').classList.remove('is-open');
   loadLists();
 });
@@ -1187,7 +1419,6 @@ el('list-save-btn').addEventListener('click', async ()=>{
    Settings
    ========================================================================= */
 async function loadSettingsScreen(){
-  if(!sb) return;
   renderMembersSettings();
   renderIcsSettings();
   renderPhotoSettings();
@@ -1195,8 +1426,7 @@ async function loadSettingsScreen(){
   document.querySelectorAll('#darkmode-toggle button').forEach(b=> b.classList.toggle('is-selected', b.dataset.val === (state.settings.dark_mode_override||'auto')));
   el('countdown-label-input').value = state.settings.countdown_label || '';
   el('countdown-date-input').value = state.settings.countdown_date || '';
-  const { data } = await sb.from('ics_sources_status').select('*');
-  state.icsStatus = data||[];
+  state.icsStatus = await db.getIcsStatus();
   renderIcsSettings();
 }
 function renderMembersSettings(){
@@ -1215,7 +1445,7 @@ function renderIcsSettings(){
   const wrap = el('settings-ics'); wrap.innerHTML='';
   state.members.forEach(m=>{
     const src = state.icsStatus.find(s=>s.family_member_id===m.id);
-    const statusColor = !src ? 'var(--ink-muted)' : src.last_status==='ok' ? 'var(--good)' : src.last_status==='pending' ? 'var(--warning)' : 'var(--critical)';
+    const statusColor = !src ? 'var(--ink-muted)' : src.last_status==='ok' ? 'var(--good)' : (src.last_status==='pending' || src.last_status.startsWith('demo')) ? 'var(--warning)' : 'var(--critical)';
     const row = document.createElement('div');
     row.className = 'settings-row';
     row.innerHTML = `<span class="avatar" style="background:${colorFor(m.color_hex)}">${escapeHtml((m.initials||m.name[0]||'?').slice(0,2))}</span>
@@ -1230,20 +1460,17 @@ function renderIcsSettings(){
 function promptIcsUrl(m){
   const url = prompt(`Paste ${m.name}'s Secret address in iCal format:`);
   if(url===null) return;
-  if(url.trim()===''){ sb.rpc('delete_ics_source', { p_family_member_id: m.id }).then(loadSettingsScreen); return; }
-  sb.rpc('upsert_ics_source', { p_family_member_id: m.id, p_ics_url: url.trim() }).then(loadSettingsScreen);
+  if(url.trim()===''){ db.deleteIcsSource(m.id).then(loadSettingsScreen); return; }
+  db.upsertIcsSource(m.id, url.trim()).then(loadSettingsScreen);
 }
 function renderPhotoSettings(){
   const grid = el('photo-grid'); grid.innerHTML='';
   state.photos.forEach(p=>{
-    const { data } = sb.storage.from('screensaver-photos').getPublicUrl(p.storage_path);
     const thumb = document.createElement('div');
     thumb.className = 'photo-thumb';
-    thumb.innerHTML = `<img src="${data.publicUrl}" loading="lazy"><button class="rm" data-id="${p.id}" data-path="${p.storage_path}">✕</button>`;
-    thumb.querySelector('.rm').addEventListener('click', async (e)=>{
-      const btn = e.currentTarget;
-      await sb.storage.from('screensaver-photos').remove([btn.dataset.path]);
-      await sb.from('screensaver_photos').delete().eq('id', btn.dataset.id);
+    thumb.innerHTML = `<img src="${db.getPhotoUrl(p)}" loading="lazy"><button class="rm" data-id="${p.id}">✕</button>`;
+    thumb.querySelector('.rm').addEventListener('click', async ()=>{
+      await db.deletePhoto(p);
       loadPhotos();
     });
     grid.appendChild(thumb);
@@ -1256,17 +1483,12 @@ function renderPhotoSettings(){
 }
 el('photo-upload-input').addEventListener('change', async (e)=>{
   const files = Array.from(e.target.files||[]);
-  for(const file of files){
-    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name}`;
-    const { error } = await sb.storage.from('screensaver-photos').upload(path, file);
-    if(!error) await sb.from('screensaver_photos').insert({ storage_path: path, sort_order: state.photos.length });
-  }
+  for(let i=0;i<files.length;i++) await db.addPhotoFile(files[i], state.photos.length+i);
   e.target.value = '';
   loadPhotos();
 });
 async function loadPhotos(){
-  const { data } = await sb.from('screensaver_photos').select('*').order('sort_order',{ascending:true});
-  state.photos = data||[];
+  state.photos = await db.listPhotos();
   if(state.view==='settings') renderPhotoSettings();
 }
 
@@ -1289,7 +1511,7 @@ el('clear-countdown-btn').addEventListener('click', ()=>{
 });
 async function saveSettings(patch){
   Object.assign(state.settings, patch);
-  await sb.from('app_settings').update(patch).eq('id', 1);
+  await db.updateSettings(patch);
   return state.settings;
 }
 
@@ -1321,14 +1543,14 @@ el('member-save-btn').addEventListener('click', async ()=>{
   const initials = el('member-initials-input').value.trim();
   const color = el('member-color-row').querySelector('.is-selected').dataset.hex;
   const payload = { name, initials: initials||name.slice(0,2).toUpperCase(), color_hex: color };
-  if(editingMemberId) await sb.from('family_members').update(payload).eq('id', editingMemberId);
-  else await sb.from('family_members').insert({ ...payload, sort_order: state.members.length });
+  if(editingMemberId) await db.updateMember(editingMemberId, payload);
+  else await db.addMember({ ...payload, sort_order: state.members.length });
   el('modal-member').classList.remove('is-open');
   loadMembers();
 });
 el('member-delete-btn').addEventListener('click', ()=>{
   confirmDialog('Remove this family member?', 'Their chores stay but become unassigned. Events keep syncing only if you also remove their calendar link.', async ()=>{
-    await sb.from('family_members').delete().eq('id', editingMemberId);
+    await db.deleteMember(editingMemberId);
     el('modal-member').classList.remove('is-open');
     loadMembers();
   });
@@ -1357,16 +1579,14 @@ document.querySelectorAll('.modal-overlay').forEach(ov=>{
    Members (shared load, used by filter/chores/settings)
    ========================================================================= */
 async function loadMembers(){
-  if(!sb) return;
-  const { data } = await sb.from('family_members').select('*').order('sort_order',{ascending:true});
-  state.members = data||[];
+  state.members = await db.listMembers();
   renderFamilyFilter();
   if(state.view==='chores') renderChores();
   if(state.view==='settings') renderMembersSettings();
 }
 async function loadSettingsRow(){
-  const { data } = await sb.from('app_settings').select('*').eq('id',1).maybeSingle();
-  if(data) state.settings = data;
+  const s = await db.getSettings();
+  if(s) state.settings = s;
   renderCountdown();
   applyDarkModeSchedule(new Date());
 }
@@ -1397,10 +1617,9 @@ function startScreensaver(){
 function showScreensaverPhoto(){
   const ss = el('screensaver');
   const photo = state.photos[ssIndex];
-  if(!photo || !sb) return;
-  const { data } = sb.storage.from('screensaver-photos').getPublicUrl(photo.storage_path);
+  if(!photo) return;
   const img = document.createElement('img');
-  img.src = data.publicUrl;
+  img.src = db.getPhotoUrl(photo);
   img.addEventListener('load', ()=>{
     ss.querySelectorAll('img').forEach(i=>i.remove());
     ss.insertBefore(img, ss.firstChild);
@@ -1430,19 +1649,14 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refresh
 
 let realtimeDebounce = null;
 function subscribeRealtime(){
-  if(!sb) return;
-  const channel = sb.channel('public-changes');
-  ['family_members','events','chores','chore_completions','lists','list_items','app_settings'].forEach(table=>{
-    channel.on('postgres_changes', { event:'*', schema:'public', table }, ()=>{
-      clearTimeout(realtimeDebounce);
-      realtimeDebounce = setTimeout(()=>{
-        if(table==='family_members') loadMembers();
-        else if(table==='app_settings') loadSettingsRow();
-        else refreshCurrentView();
-      }, 400);
-    });
+  db.subscribe((table)=>{
+    clearTimeout(realtimeDebounce);
+    realtimeDebounce = setTimeout(()=>{
+      if(table==='family_members') loadMembers();
+      else if(table==='app_settings') loadSettingsRow();
+      else refreshCurrentView();
+    }, 400);
   });
-  channel.subscribe();
 }
 
 /* =========================================================================
@@ -1450,12 +1664,11 @@ function subscribeRealtime(){
    ========================================================================= */
 async function boot(){
   applyOrientation();
-  if(sb){
-    await loadMembers();
-    await loadSettingsRow();
-    await loadPhotos();
-    subscribeRealtime();
-  }
+  await initDb();
+  await loadMembers();
+  await loadSettingsRow();
+  await loadPhotos();
+  subscribeRealtime();
   setView('calendar');
   resetIdleTimer();
 }
