@@ -86,10 +86,39 @@
   header#header{
     grid-area: header; display:flex; flex-direction:column; gap:.7rem;
     padding: 1rem 1.4rem; position:relative; overflow:hidden; color:#fff;
+    background:#0a0917; /* fallback; .hero-bg paints the real wallpaper */
+  }
+  /* Wallpaper art: night sky + aurora glow + starfield + a two-row pine
+     silhouette, all CSS/SVG so it needs no image asset or network fetch —
+     works the same in the sandbox, the Artifact preview, and once deployed. */
+  .hero-bg{ position:absolute; inset:0; z-index:0; overflow:hidden; }
+  .hero-bg::before{
+    content:''; position:absolute; inset:0;
     background:
-      radial-gradient(ellipse 120% 140% at 15% -20%, rgba(90,70,190,.55), transparent 60%),
-      radial-gradient(ellipse 100% 120% at 100% 0%, rgba(40,150,180,.35), transparent 55%),
-      linear-gradient(160deg, #191534 0%, #100e26 55%, #0a0917 100%);
+      radial-gradient(ellipse 90% 55% at 18% 105%, rgba(60,190,130,.34), transparent 62%),
+      radial-gradient(ellipse 70% 50% at 78% 95%, rgba(70,150,190,.24), transparent 58%),
+      radial-gradient(ellipse 120% 140% at 15% -20%, rgba(90,70,190,.42), transparent 60%),
+      linear-gradient(180deg, #14112c 0%, #100e26 55%, #0a0917 100%);
+  }
+  .hero-stars{
+    position:absolute; inset:0; opacity:.75;
+    background-image:
+      radial-gradient(1.6px 1.6px at 10% 15%, #fff, transparent 60%),
+      radial-gradient(1.2px 1.2px at 35% 8%, #fff, transparent 60%),
+      radial-gradient(1.4px 1.4px at 60% 20%, #fff, transparent 60%),
+      radial-gradient(1px 1px at 80% 5%, #fff, transparent 60%),
+      radial-gradient(1.3px 1.3px at 92% 25%, #fff, transparent 60%),
+      radial-gradient(1px 1px at 22% 35%, #fff, transparent 60%),
+      radial-gradient(1.4px 1.4px at 48% 30%, #fff, transparent 60%),
+      radial-gradient(1px 1px at 70% 38%, #fff, transparent 60%);
+    background-repeat:repeat; background-size:340px 220px;
+  }
+  .hero-trees{ position:absolute; left:0; right:0; bottom:-1px; width:100%; display:block; }
+  .hero-trees-back{ height:46%; fill:#0d1712; opacity:.85; }
+  .hero-trees-front{ height:36%; fill:#060c09; }
+  .hero-overlay{
+    position:absolute; inset:0; z-index:0; pointer-events:none;
+    background:linear-gradient(180deg, rgba(4,4,12,.62) 0%, rgba(4,4,12,.22) 38%, transparent 62%);
   }
   .hero-main{ display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:relative; z-index:1; }
   .hero-clock-block{ display:flex; flex-direction:column; gap:.15rem; }
@@ -106,6 +135,24 @@
   .weather-day .wtemp{ font-size:.72rem; color:#fff; font-weight:700; text-transform:none; letter-spacing:0; }
 
   .header-cal-toolbar{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; position:relative; z-index:1; }
+
+  /* Calendar view only: the header grows into the full wallpaper hero from
+     the reference photo — big clock/date top-left, weather top-right, the
+     glass toolbar floating near the bottom of the art, lots of open sky
+     in between. Other views keep the compact bar (content, not scenery,
+     is the point there). */
+  #app[data-view="calendar"] header#header{
+    height:38vh; min-height:260px; padding:1.5rem 1.7rem 1.2rem; justify-content:space-between;
+  }
+  #app[data-view="calendar"] .hero-clock-block .clock{ font-size:7.4vmin; }
+  #app[data-view="calendar"] .hero-clock-block .subline{ font-size:2.1vmin; }
+  #app[data-view="calendar"] .weather-now .wicon svg{ width:4.4vmin; height:4.4vmin; }
+  #app[data-view="calendar"] .weather-now .wtemp{ font-size:3.6vmin; }
+  #app[data-view="calendar"] .weather-strip{ padding-left:1.4vmin; gap:1.4vmin; }
+  #app[data-view="calendar"] .weather-day{ font-size:1.05vmin; gap:.3vmin; }
+  #app[data-view="calendar"] .weather-day .wicon svg{ width:2vmin; height:2vmin; }
+  #app[data-view="calendar"] .weather-day .wtemp{ font-size:1.2vmin; }
+  #app[data-view="calendar"] .header-cal-toolbar{ margin-top:auto; }
 
   /* Glass ("liquid glass") controls — frosted, translucent, thin light
      border + inner highlight. Touch targets stay at --tap-min regardless
@@ -392,8 +439,14 @@
 </head>
 <body>
 
-<div id="app" data-orientation="portrait">
+<div id="app" data-orientation="portrait" data-view="calendar">
   <header id="header">
+    <div class="hero-bg" aria-hidden="true">
+      <div class="hero-stars"></div>
+      <svg class="hero-trees hero-trees-back" viewBox="0 0 1200 300" preserveAspectRatio="none"><path d="M 0,300 L 0,294 L 14.0,202 L 28,299 L 47.0,228 L 66,295 L 83.5,216 L 101,292 L 119.0,226 L 137,299 L 149.0,231 L 161,299 L 176.5,133 L 192,292 L 204.5,217 L 217,291 L 232.5,225 L 248,290 L 258.5,183 L 269,300 L 288.0,91 L 307,294 L 325.0,91 L 343,300 L 352.5,184 L 362,296 L 379.5,206 L 397,292 L 412.5,204 L 428,296 L 438.5,94 L 449,299 L 466.5,194 L 484,290 L 502.0,94 L 520,299 L 532.0,145 L 544,291 L 561.5,224 L 579,297 L 588.5,82 L 598,294 L 614.5,104 L 631,293 L 652.0,160 L 673,295 L 691.0,124 L 709,288 L 722.5,177 L 736,299 L 747.5,178 L 759,292 L 777.0,164 L 795,289 L 811.5,153 L 828,291 L 844.0,167 L 860,292 L 870.0,210 L 880,288 L 895.5,198 L 911,293 L 925.0,202 L 939,290 L 954.5,230 L 970,291 L 980.0,98 L 990,289 L 1004.0,153 L 1018,293 L 1032.5,88 L 1047,299 L 1065.0,124 L 1083,293 L 1093.0,171 L 1103,299 L 1123.0,70 L 1143,290 L 1152.5,161 L 1162,296 L 1180.0,126 L 1198,290 L 1200,142 L 1200,295 L 1200,300 Z"/></svg>
+      <svg class="hero-trees hero-trees-front" viewBox="0 0 1200 300" preserveAspectRatio="none"><path d="M 0,300 L 0,300 L 23.0,172 L 46,297 L 70.5,130 L 95,299 L 111.5,165 L 128,299 L 151.5,61 L 175,300 L 197.0,92 L 219,297 L 232.0,177 L 245,300 L 261.5,71 L 278,292 L 299.5,150 L 321,293 L 340.5,144 L 360,300 L 382.0,129 L 404,294 L 429.0,160 L 454,298 L 472.0,129 L 490,299 L 506.0,114 L 522,299 L 536.0,103 L 550,296 L 568.5,112 L 587,293 L 612.5,189 L 638,294 L 659.5,169 L 681,296 L 695.0,59 L 709,295 L 735.0,40 L 761,299 L 783.0,151 L 805,297 L 818.5,31 L 832,299 L 857.0,126 L 882,299 L 908.5,141 L 935,293 L 954.0,129 L 973,298 L 996.0,107 L 1019,297 L 1037.5,110 L 1056,299 L 1079.5,132 L 1103,298 L 1125.5,38 L 1148,298 L 1169.5,138 L 1191,296 L 1200,103 L 1200,292 L 1200,300 Z"/></svg>
+    </div>
+    <div class="hero-overlay" aria-hidden="true"></div>
     <div class="hero-main">
       <div class="hero-clock-block">
         <span class="clock" id="hdr-clock">--:--</span>
@@ -1103,6 +1156,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
 });
 function setView(view){
   state.view = view;
+  el('app').dataset.view = view;
   document.querySelectorAll('.view').forEach(v=> v.hidden = (v.id !== 'view-'+view));
   document.querySelectorAll('.nav-btn').forEach(b=> b.classList.toggle('is-active', b.dataset.view===view));
   el('header-cal-toolbar').style.display = view==='calendar' ? '' : 'none';
