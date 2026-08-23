@@ -141,13 +141,30 @@
   }
   #app[data-view="calendar"] .hero-clock-block .clock{ font-size:7.4vmin; }
   #app[data-view="calendar"] .hero-clock-block .subline{ font-size:2.1vmin; }
-  #app[data-view="calendar"] .weather-now .wicon svg{ width:4.4vmin; height:4.4vmin; }
-  #app[data-view="calendar"] .weather-now .wtemp{ font-size:3.6vmin; }
-  #app[data-view="calendar"] .weather-strip{ padding-left:1.4vmin; gap:1.4vmin; }
-  #app[data-view="calendar"] .weather-day{ font-size:1.05vmin; gap:.3vmin; }
-  #app[data-view="calendar"] .weather-day .wicon svg{ width:2vmin; height:2vmin; }
-  #app[data-view="calendar"] .weather-day .wtemp{ font-size:1.2vmin; }
   #app[data-view="calendar"] .header-cal-toolbar-wrap{ margin-top:auto; }
+
+  /* Week-view header only: weather stacks (current on top, forecast strip
+     below) and scales up to match the clock+date block's height on the
+     opposite corner, instead of sitting small and single-line beside it.
+     Scoped to data-view="calendar" so the compact Chores/Lists/Settings
+     header (which reuses the same .hero-weather-block markup) stays
+     small. The month-view sidebar keeps its own sizing below — its
+     .weather-now/.weather-strip aren't inside .hero-weather-block. */
+  #app[data-view="calendar"] .hero-weather-block{ flex-direction:column; align-items:flex-end; gap:.9vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-now{ gap:1.1vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-now .wicon svg{ width:6.6vmin; height:6.6vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-now .wtemp{ font-size:6.6vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-strip{ border-left:none; padding-left:0; gap:1.8vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-day{ font-size:1.3vmin; gap:.4vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-day .wicon svg{ width:2.8vmin; height:2.8vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-day .wtemp{ font-size:1.5vmin; }
+
+  .month-side-weather .weather-now .wicon svg{ width:4.4vmin; height:4.4vmin; }
+  .month-side-weather .weather-now .wtemp{ font-size:3.6vmin; }
+  .month-side-weather .weather-strip{ gap:1.4vmin; }
+  .month-side-weather .weather-day{ font-size:1.05vmin; gap:.3vmin; }
+  .month-side-weather .weather-day .wicon svg{ width:2vmin; height:2vmin; }
+  .month-side-weather .weather-day .wtemp{ font-size:1.2vmin; }
 
   /* Glass ("liquid glass") controls — frosted, translucent, thin light
      border + inner highlight. Touch targets stay at --tap-min regardless
