@@ -69,21 +69,24 @@
   }
   #app[data-orientation="portrait"]{
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto 1fr auto;
-    grid-template-areas: "header" "banner" "main" "nav";
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: "header" "main" "nav";
   }
   #app[data-orientation="landscape"]{
     grid-template-columns: auto 1fr;
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas: "nav header" "nav banner" "nav main";
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "nav header" "nav main";
   }
 
-  /* Header — a single compact row: clock+weather inline, date below -------- */
+  /* Header — clock+weather inline, date below; the calendar toolbar joins
+     this same row (prev/next, family filter, Week/Month) when Calendar is
+     the active view, wrapping onto its own line in portrait's narrower width */
   header#header{
-    grid-area: header; display:flex; align-items:center;
+    grid-area: header; display:flex; align-items:center; gap:1.2rem;
     padding: .7rem 1.4rem; background:var(--surface); border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
   }
-  .header-date{ display:flex; flex-direction:column; gap:.1rem; }
+  .header-date{ display:flex; flex-direction:column; gap:.1rem; flex-shrink:0; }
   .clock-row{ display:flex; align-items:baseline; gap:.8rem; }
   .header-date .clock{ font-size:1.8rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
   .header-date .subline{ font-size:.9rem; color:var(--ink-secondary); font-weight:600; }
@@ -91,7 +94,9 @@
   .weather .wicon{ font-size:1.2rem; line-height:1; }
   .weather .wtemp{ font-size:1rem; }
 
-  /* Family filter — lives in the calendar toolbar, right of the nav arrows */
+  .header-cal-toolbar{ display:flex; align-items:center; gap:1rem; flex:1; flex-wrap:wrap; min-width:0; }
+
+  /* Family filter — lives in the header toolbar, right of the nav arrows */
   #family-filter{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; flex:1; }
   .filter-chip{
     display:flex; align-items:center; gap:.4rem; min-height:var(--tap-min); padding:.35rem .8rem .35rem .35rem;
@@ -108,13 +113,13 @@
     color:#fff; font-weight:700; font-size:1rem; flex-shrink:0; letter-spacing:.02em;
   }
 
-  /* Countdown banner -------------------------------------------------- */
+  /* Countdown banner — disabled for now (see renderCountdown()); rule kept
+     so it's a quick re-enable rather than a rebuild. */
   #countdown-banner{
-    grid-area: banner; display:none; align-items:center; justify-content:center; gap:.6rem;
+    display:none; align-items:center; justify-content:center; gap:.6rem;
     background:var(--accent); color:var(--accent-ink); padding:.55rem 1rem; font-weight:600; font-size:1rem;
     text-align:center;
   }
-  #countdown-banner.is-active{ display:flex; }
 
   /* Nav ---------------------------------------------------------------- */
   nav#nav{
@@ -161,18 +166,20 @@
   .segmented button.is-active{ background:var(--accent); color:var(--accent-ink); }
   .today-label{ font-weight:700; font-size:1.05rem; }
 
-  /* Calendar shell: fills the view, no page-level scroll except where noted */
+  /* Calendar shell: fills the view, no page-level scroll except where noted.
+     Toolbar now lives in the header, so this view is just the grid/agenda. */
   #view-calendar.view:not([hidden]){ display:flex; flex-direction:column; overflow:hidden; }
-  #view-calendar .view-toolbar{ flex-shrink:0; }
   #calendar-week, #calendar-month-wrap{ flex:1; min-height:0; }
 
-  /* Calendar: week — a wrapping grid of day-cards, same shape both orientations */
-  .week-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(10.5rem,1fr)); grid-auto-rows:1fr; gap:.6rem; height:100%; }
+  /* Calendar: week — a fixed 4x2 grid (8 slots, 7 filled) so the whole week
+     reads at a glance in one layout, same shape both orientations */
+  .week-grid{ display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(2,1fr); gap:.6rem; height:100%; }
   .day-col{
     background:var(--surface); border:1px solid var(--gridline); border-radius:var(--radius-sm); padding:.6rem;
     display:flex; flex-direction:column; gap:.4rem; min-width:0; min-height:0;
   }
   .day-col.is-today{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+  .day-col.is-drop-target{ outline:2px dashed var(--accent); outline-offset:-2px; background:color-mix(in srgb, var(--accent) 10%, var(--surface)); }
   .day-col .col-head{ display:flex; align-items:baseline; gap:.4rem; padding-bottom:.3rem; border-bottom:1px solid var(--gridline); flex-shrink:0; }
   .day-col .col-head .dname{ font-weight:700; font-size:.85rem; }
   .day-col .col-head .dnum{ font-size:.8rem; color:var(--ink-muted); font-weight:600; }
@@ -186,6 +193,8 @@
   }
   .event-row .ername{ font-size:.82rem; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
   .event-row .ertime{ font-size:.72rem; color:var(--ink-secondary); font-weight:600; }
+  .event-row[data-synced="0"]{ touch-action:none; }
+  .event-row.is-dragging{ opacity:.4; }
 
   /* Calendar: month — condensed thin-line grid + a persistent agenda panel */
   .month-wrap{ display:flex; flex-direction:column; gap:.8rem; height:100%; min-height:0; }
@@ -281,7 +290,7 @@
   .btn.primary{ background:var(--accent); color:var(--accent-ink); }
   .btn.danger{ background:var(--critical); color:#fff; }
   .btn.small{ min-height:2.4rem; padding:0 .8rem; font-size:.85rem; }
-  input[type=text], input[type=number], input[type=url], input[type=time]{
+  input[type=text], input[type=number], input[type=url], input[type=time], input[type=date]{
     min-height:var(--tap-min); border-radius:var(--radius-sm); border:2px solid var(--gridline); background:var(--surface-2);
     color:var(--ink); padding:0 .8rem; width:100%;
   }
@@ -337,18 +346,17 @@
   /* misc */
   .empty-state{ color:var(--ink-muted); text-align:center; padding:3rem 1rem; font-size:1rem; }
 
-  /* Local sandbox / demo-mode badge --------------------------------------- */
+  /* Local sandbox / demo-mode badge — floats over the content area (#main),
+     not the viewport, so it never competes with the header's own content */
   #demo-badge{
-    position:fixed; top:.6rem; right:.6rem; z-index:60; background:var(--warning); color:#1a1a19;
-    font-weight:700; font-size:.68rem; letter-spacing:.02em; text-transform:uppercase; padding:.4rem .8rem;
+    position:absolute; top:.6rem; right:.6rem; z-index:6; background:var(--warning); color:#1a1a19;
+    font-weight:700; font-size:.65rem; letter-spacing:.02em; text-transform:uppercase; padding:.35rem .7rem;
     border-radius:999px; box-shadow:var(--shadow); display:none; cursor:default;
   }
   #demo-badge.is-visible{ display:block; }
 </style>
 </head>
 <body>
-
-<div id="demo-badge">Local sandbox — not saved to any server</div>
 
 <div id="app" data-orientation="portrait">
   <header id="header">
@@ -359,26 +367,27 @@
       </div>
       <span class="subline" id="hdr-date">Sunday, January 1</span>
     </div>
+
+    <div class="header-cal-toolbar" id="header-cal-toolbar">
+      <div class="toolbar-nav">
+        <button class="icon-btn" id="cal-prev" aria-label="Previous">‹</button>
+        <span class="today-label" id="cal-range-label">This Week</span>
+        <button class="icon-btn" id="cal-next" aria-label="Next">›</button>
+      </div>
+      <div id="family-filter"></div>
+      <div class="segmented" id="cal-mode-toggle">
+        <button data-mode="week" class="is-active">Week</button>
+        <button data-mode="month">Month</button>
+      </div>
+    </div>
   </header>
 
   <div id="countdown-banner"></div>
 
   <main id="main">
+    <div id="demo-badge">Local sandbox — not saved to any server</div>
 
     <section id="view-calendar" class="view">
-      <div class="view-toolbar">
-        <div class="toolbar-nav">
-          <button class="icon-btn" id="cal-prev" aria-label="Previous">‹</button>
-          <span class="today-label" id="cal-range-label">This Week</span>
-          <button class="icon-btn" id="cal-next" aria-label="Next">›</button>
-        </div>
-        <div id="family-filter"></div>
-        <div class="segmented" id="cal-mode-toggle">
-          <button data-mode="week" class="is-active">Week</button>
-          <button data-mode="month">Month</button>
-        </div>
-      </div>
-
       <div id="calendar-week"></div>
       <div id="calendar-month-wrap" class="month-wrap" style="display:none">
         <div class="month-grid-pane">
@@ -389,6 +398,7 @@
           <div class="agenda-list" id="calendar-agenda-list"></div>
         </div>
       </div>
+      <button class="fab" id="fab-add-event" aria-label="Add event">+</button>
     </section>
 
     <section id="view-chores" class="view" hidden>
@@ -502,7 +512,53 @@
     <h2 id="ev-title">Event</h2>
     <div class="event-detail-time" id="ev-time"></div>
     <div class="event-detail-loc" id="ev-loc"></div>
-    <div class="modal-actions"><button class="btn primary" id="ev-close">Close</button></div>
+    <p class="modal-sub" id="ev-synced-note" style="display:none">Synced from Google Calendar — edit it there; changes made here would just be overwritten on the next sync.</p>
+    <div class="modal-actions">
+      <button class="btn" id="ev-edit" style="display:none">Edit</button>
+      <button class="btn primary" id="ev-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / edit event modal -->
+<div class="modal-overlay" id="modal-event-edit">
+  <div class="modal">
+    <h2 id="event-edit-title">Add event</h2>
+    <div class="field">
+      <label for="event-title-input">Title</label>
+      <input type="text" id="event-title-input" maxlength="100">
+    </div>
+    <div class="field">
+      <label>Assign to</label>
+      <div class="avatar-pick-row" id="event-assignee-row"></div>
+    </div>
+    <div class="field">
+      <label>When</label>
+      <div class="toggle-group" id="event-allday-toggle">
+        <button data-val="timed" class="is-selected">Timed</button>
+        <button data-val="allday">All day</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="event-date-input">Date</label>
+      <input type="date" id="event-date-input">
+    </div>
+    <div class="field" id="event-time-fields">
+      <label>Time</label>
+      <div style="display:flex; gap:.6rem;">
+        <input type="time" id="event-start-input" style="flex:1">
+        <input type="time" id="event-end-input" style="flex:1">
+      </div>
+    </div>
+    <div class="field">
+      <label for="event-location-input">Location (optional)</label>
+      <input type="text" id="event-location-input" maxlength="120">
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="event-delete-btn" style="display:none">Delete</button>
+      <button class="btn" id="event-edit-cancel-btn">Cancel</button>
+      <button class="btn primary" id="event-edit-save-btn">Save</button>
+    </div>
   </div>
 </div>
 
@@ -684,6 +740,9 @@ function supabaseDb(sb){
     async deleteMember(id){ await sb.from('family_members').delete().eq('id',id); },
 
     async listEvents(startISO,endISO){ return (await unwrap(sb.from('events').select('*').gte('start_at',startISO).lt('start_at',endISO).order('start_at',{ascending:true}))) || []; },
+    async addEvent(payload){ await sb.from('events').insert(payload); },
+    async updateEvent(id,patch){ await sb.from('events').update(patch).eq('id',id); },
+    async deleteEvent(id){ await sb.from('events').delete().eq('id',id); },
 
     async listChores(){ return (await unwrap(sb.from('chores').select('*').order('sort_order',{ascending:true}))) || []; },
     async addChore(payload){ await sb.from('chores').insert(payload); },
@@ -854,6 +913,9 @@ function localDb(){
     },
 
     async listEvents(startISO,endISO){ return data.events.filter(e=> e.start_at>=startISO && e.start_at<endISO).sort((a,b)=> a.start_at<b.start_at?-1:1); },
+    async addEvent(payload){ data.events.push({ id:uid(), google_event_id:null, last_synced_at:new Date().toISOString(), ...payload }); persist(); notify('events'); },
+    async updateEvent(id,patch){ const e=data.events.find(x=>x.id===id); if(e) Object.assign(e,patch); persist(); notify('events'); },
+    async deleteEvent(id){ data.events = data.events.filter(e=>e.id!==id); persist(); notify('events'); },
 
     async listChores(){ return data.chores.slice().sort((a,b)=>a.sort_order-b.sort_order); },
     async addChore(payload){ data.chores.push({ id:uid(), sort_order:data.chores.length, ...payload }); persist(); notify('chores'); },
@@ -1003,6 +1065,7 @@ function setView(view){
   state.view = view;
   document.querySelectorAll('.view').forEach(v=> v.hidden = (v.id !== 'view-'+view));
   document.querySelectorAll('.nav-btn').forEach(b=> b.classList.toggle('is-active', b.dataset.view===view));
+  el('header-cal-toolbar').style.display = view==='calendar' ? '' : 'none';
   if(view==='calendar') loadCalendarData();
   if(view==='chores') loadChores();
   if(view==='lists') loadLists();
@@ -1030,6 +1093,15 @@ const WMOICONS = {
   61:'🌧️',63:'🌧️',65:'🌧️',71:'🌨️',73:'🌨️',75:'🌨️',80:'🌦️',81:'🌧️',82:'⛈️',
   95:'⛈️',96:'⛈️',99:'⛈️'
 };
+function showDemoWeather(){
+  // Sandboxed previews (and offline/no-geolocation cases) can't reach a
+  // real weather API — show a placeholder rather than leaving this blank,
+  // so the widget's design is visible even when live data isn't. A real
+  // deployment (Cloudflare Pages, no CSP sandbox) replaces this with a
+  // live reading on the next successful fetch.
+  el('hdr-weather').innerHTML = `<span class="wicon">⛅</span><span class="wtemp">22°</span>`;
+  el('hdr-weather').title = 'Demo reading — needs a real deployment (this preview blocks outside network calls) and location access.';
+}
 async function loadWeather(){
   try{
     let lat = FALLBACK_LAT, lon = FALLBACK_LON;
@@ -1044,13 +1116,14 @@ async function loadWeather(){
         }, ()=>res(), { timeout:5000 });
       });
     }
-    if(lat==null || lon==null) return;
+    if(lat==null || lon==null){ showDemoWeather(); return; }
     const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=celsius`);
     const data = await res.json();
     const code = data.current.weather_code;
     const temp = Math.round(data.current.temperature_2m);
+    el('hdr-weather').removeAttribute('title');
     el('hdr-weather').innerHTML = `<span class="wicon">${WMOICONS[code]||'🌡️'}</span><span class="wtemp">${temp}°</span>`;
-  }catch(e){ console.warn('weather failed', e); }
+  }catch(e){ console.warn('weather failed, showing demo reading', e); showDemoWeather(); }
 }
 loadWeather();
 setInterval(loadWeather, 30*60*1000);
@@ -1158,12 +1231,63 @@ function eventRowHtml(e){
   const m = memberById(e.family_member_id);
   const color = m ? colorFor(m.color_hex) : 'var(--ink-muted)';
   const time = e.all_day ? 'All day' : fmtTime(new Date(e.start_at));
-  return `<button class="event-row" style="border-left-color:${color}" data-id="${e.id}"><span class="ername">${escapeHtml(e.title)}</span><span class="ertime">${time}</span></button>`;
+  const synced = e.google_event_id ? 1 : 0;
+  return `<button class="event-row" style="border-left-color:${color}" data-id="${e.id}" data-synced="${synced}"><span class="ername">${escapeHtml(e.title)}</span><span class="ertime">${time}${synced?' · synced':''}</span></button>`;
 }
 function bindEventRows(container){
   container.querySelectorAll('.event-row').forEach(row=>{
     row.addEventListener('click', ()=> openEventModal(state.events.find(e=>e.id===row.dataset.id)));
   });
+}
+
+// Cross-day drag: drag any non-synced event card onto a different day-col
+// to reschedule it there (keeps its time-of-day and duration). Synced
+// events (google_event_id set) aren't draggable — a sync would just
+// overwrite the move back to whatever Google says within 15 minutes.
+function makeEventDraggable(gridEl){
+  gridEl.addEventListener('pointerdown', (e)=>{
+    const card = e.target.closest('.event-row');
+    if(!card || card.dataset.synced==='1') return;
+    let moved = false;
+    const startX = e.clientX, startY = e.clientY;
+    try{ card.setPointerCapture(e.pointerId); }catch(err){}
+    function onMove(ev){
+      if(!moved && Math.hypot(ev.clientX-startX, ev.clientY-startY) > 8){
+        moved = true;
+        card.classList.add('is-dragging');
+      }
+      if(!moved) return;
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      const dayCol = under && under.closest('.day-col');
+      gridEl.querySelectorAll('.day-col.is-drop-target').forEach(c=> c.classList.remove('is-drop-target'));
+      if(dayCol) dayCol.classList.add('is-drop-target');
+    }
+    function onUp(ev){
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      card.classList.remove('is-dragging');
+      const dropTarget = gridEl.querySelector('.day-col.is-drop-target');
+      gridEl.querySelectorAll('.day-col.is-drop-target').forEach(c=> c.classList.remove('is-drop-target'));
+      if(moved && dropTarget && dropTarget.dataset.date) moveEventToDate(card.dataset.id, dropTarget.dataset.date);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  });
+}
+async function moveEventToDate(eventId, dateStr){
+  const ev = state.events.find(x=>x.id===eventId);
+  if(!ev) return;
+  const [y,mo,d] = dateStr.split('-').map(Number);
+  const oldStart = new Date(ev.start_at);
+  if(sameDay(oldStart, new Date(y,mo-1,d))) return;
+  const newStart = new Date(y, mo-1, d, oldStart.getHours(), oldStart.getMinutes(), 0, 0);
+  let newEnd = null;
+  if(ev.end_at){
+    const durationMs = new Date(ev.end_at).getTime() - oldStart.getTime();
+    newEnd = new Date(newStart.getTime() + durationMs);
+  }
+  await db.updateEvent(eventId, { start_at: newStart.toISOString(), end_at: newEnd ? newEnd.toISOString() : null });
+  loadCalendarData();
 }
 
 function renderWeek(){
@@ -1177,12 +1301,14 @@ function renderWeek(){
     const dayEvents = eventsOn(day);
     const col = document.createElement('div');
     col.className = 'day-col' + (today?' is-today':'');
+    col.dataset.date = localDateStr(day);
     col.innerHTML = `<div class="col-head"><span class="dname">${day.toLocaleDateString(undefined,{weekday:'short'})}</span><span class="dnum">${day.getDate()}</span></div>
       <div class="col-events">${dayEvents.length? dayEvents.map(eventRowHtml).join('') : '<div class="empty-state" style="padding:.6rem 0;font-size:.85rem;">No events</div>'}</div>`;
     wrap.appendChild(col);
   }
   container.appendChild(wrap);
   bindEventRows(container);
+  makeEventDraggable(wrap);
 }
 
 function renderAgenda(){
@@ -1223,15 +1349,109 @@ function renderMonth(){
   });
 }
 
+let viewingEventId = null;
 function openEventModal(e){
   if(!e) return;
+  viewingEventId = e.id;
   el('ev-title').textContent = e.title;
   el('ev-time').textContent = e.all_day ? 'All day' :
     `${new Date(e.start_at).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})} · ${fmtTime(new Date(e.start_at))}${e.end_at? ' – '+fmtTime(new Date(e.end_at)):''}`;
   el('ev-loc').textContent = e.location || '';
+  el('ev-edit').style.display = e.google_event_id ? 'none' : '';
+  el('ev-synced-note').style.display = e.google_event_id ? '' : 'none';
   el('modal-event').classList.add('is-open');
 }
 el('ev-close').addEventListener('click', ()=> el('modal-event').classList.remove('is-open'));
+el('ev-edit').addEventListener('click', ()=>{
+  el('modal-event').classList.remove('is-open');
+  openEventEditModal(state.events.find(x=>x.id===viewingEventId));
+});
+
+/* =========================================================================
+   Add / edit event (locally-created events only — synced ones stay
+   read-only since a sync would overwrite any local change within 15min)
+   ========================================================================= */
+let editingEventId = null;
+function openEventEditModal(event){
+  editingEventId = event ? event.id : null;
+  el('event-edit-title').textContent = event ? 'Edit event' : 'Add event';
+  el('event-title-input').value = event ? event.title : '';
+  el('event-location-input').value = event ? (event.location||'') : '';
+  el('event-delete-btn').style.display = event ? '' : 'none';
+
+  const row = el('event-assignee-row'); row.innerHTML = '';
+  const noneBtn = document.createElement('button');
+  noneBtn.className = 'avatar-pick' + (!event || !event.family_member_id ? ' is-selected':'');
+  noneBtn.dataset.id = '';
+  noneBtn.innerHTML = `<span class="avatar" style="background:var(--baseline)">—</span>`;
+  noneBtn.addEventListener('click', ()=>{ row.querySelectorAll('.avatar-pick').forEach(x=>x.classList.remove('is-selected')); noneBtn.classList.add('is-selected'); });
+  row.appendChild(noneBtn);
+  state.members.forEach(m=>{
+    const b = document.createElement('button');
+    b.className = 'avatar-pick' + (event && event.family_member_id===m.id ? ' is-selected':'');
+    b.dataset.id = m.id;
+    b.innerHTML = `<span class="avatar" style="background:${colorFor(m.color_hex)}">${escapeHtml((m.initials||m.name[0]||'?').slice(0,2))}</span>`;
+    b.addEventListener('click', ()=>{ row.querySelectorAll('.avatar-pick').forEach(x=>x.classList.remove('is-selected')); b.classList.add('is-selected'); });
+    row.appendChild(b);
+  });
+
+  const start = event ? new Date(event.start_at) : new Date(state.selectedDate || new Date());
+  if(!event) start.setHours(9,0,0,0);
+  el('event-date-input').value = localDateStr(start);
+  const isAllDay = event ? !!event.all_day : false;
+  document.querySelectorAll('#event-allday-toggle button').forEach(b=> b.classList.toggle('is-selected', b.dataset.val === (isAllDay?'allday':'timed')));
+  el('event-time-fields').style.display = isAllDay ? 'none' : '';
+  el('event-start-input').value = `${pad2(start.getHours())}:${pad2(start.getMinutes())}`;
+  const end = event && event.end_at ? new Date(event.end_at) : new Date(start.getTime()+60*60000);
+  el('event-end-input').value = `${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
+
+  el('modal-event-edit').classList.add('is-open');
+}
+el('fab-add-event').addEventListener('click', ()=> openEventEditModal(null));
+document.querySelectorAll('#event-allday-toggle button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#event-allday-toggle button').forEach(b=>b.classList.remove('is-selected'));
+    btn.classList.add('is-selected');
+    el('event-time-fields').style.display = btn.dataset.val==='allday' ? 'none' : '';
+  });
+});
+el('event-edit-cancel-btn').addEventListener('click', ()=> el('modal-event-edit').classList.remove('is-open'));
+el('event-edit-save-btn').addEventListener('click', async ()=>{
+  const title = el('event-title-input').value.trim();
+  const dateStr = el('event-date-input').value;
+  if(!title || !dateStr) return;
+  const [y,mo,d] = dateStr.split('-').map(Number);
+  const isAllDay = el('event-allday-toggle').querySelector('.is-selected').dataset.val === 'allday';
+  let startAt, endAt;
+  if(isAllDay){
+    startAt = new Date(y,mo-1,d,0,0,0,0);
+    endAt = null;
+  } else {
+    const [sh,sm] = el('event-start-input').value.split(':').map(Number);
+    const [eh,em] = el('event-end-input').value.split(':').map(Number);
+    startAt = new Date(y,mo-1,d,sh||0,sm||0,0,0);
+    endAt = new Date(y,mo-1,d,eh||0,em||0,0,0);
+  }
+  const assignee = el('event-assignee-row').querySelector('.is-selected');
+  const payload = {
+    title, location: el('event-location-input').value.trim(),
+    family_member_id: assignee && assignee.dataset.id ? assignee.dataset.id : null,
+    all_day: isAllDay,
+    start_at: startAt.toISOString(),
+    end_at: endAt ? endAt.toISOString() : null,
+  };
+  if(editingEventId) await db.updateEvent(editingEventId, payload);
+  else await db.addEvent(payload);
+  el('modal-event-edit').classList.remove('is-open');
+  loadCalendarData();
+});
+el('event-delete-btn').addEventListener('click', ()=>{
+  confirmDialog('Delete this event?', "This only removes it here — it won't affect Google Calendar.", async ()=>{
+    await db.deleteEvent(editingEventId);
+    el('modal-event-edit').classList.remove('is-open');
+    loadCalendarData();
+  });
+});
 
 /* =========================================================================
    Chores
