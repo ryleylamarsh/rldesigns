@@ -95,6 +95,7 @@ create table if not exists app_settings (
   dark_mode_override text check (dark_mode_override in ('auto','on','off')) default 'on',
   countdown_label text,
   countdown_date date,
+  wallpaper_photo_url text, -- optional user photo replacing the built-in wallpaper art; null = default
   updated_at timestamptz not null default now()
 );
 insert into app_settings (id) values (1) on conflict (id) do nothing;
