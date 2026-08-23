@@ -145,7 +145,20 @@
   .weather-day .wicon svg{ width:1.15rem; height:1.15rem; color:rgba(255,255,255,.82); display:block; }
   .weather-day .wtemp{ font-size:.72rem; color:#fff; font-weight:700; text-transform:none; letter-spacing:0; }
 
-  .header-cal-toolbar{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; position:relative; z-index:1; }
+  .header-cal-toolbar-wrap{ display:flex; flex-direction:column; align-items:flex-start; gap:.5rem; position:relative; z-index:1; }
+  .header-cal-toolbar{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+  /* Only shown once you've paged away from the current week/month —
+     see updateTodayButton(). Left-aligned above the prev/next pill via
+     the wrap's align-items:flex-start. */
+  .today-btn{
+    display:none; align-items:center; background:rgba(255,255,255,.16);
+    backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+    border:1px solid rgba(255,255,255,.24); border-radius:999px; padding:.4rem 1rem;
+    color:#fff; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.02em;
+    cursor:pointer; box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 4px 14px rgba(0,0,0,.28);
+  }
+  .today-btn:not([hidden]){ display:flex; }
+  .today-btn:active{ transform:scale(.96); }
 
   /* Calendar view only: the header grows into the full wallpaper hero from
      the reference photo — big clock/date top-left, weather top-right, the
@@ -163,7 +176,7 @@
   #app[data-view="calendar"] .weather-day{ font-size:1.05vmin; gap:.3vmin; }
   #app[data-view="calendar"] .weather-day .wicon svg{ width:2vmin; height:2vmin; }
   #app[data-view="calendar"] .weather-day .wtemp{ font-size:1.2vmin; }
-  #app[data-view="calendar"] .header-cal-toolbar{ margin-top:auto; }
+  #app[data-view="calendar"] .header-cal-toolbar-wrap{ margin-top:auto; }
 
   /* Glass ("liquid glass") controls — frosted, translucent, thin light
      border + inner highlight. Touch targets stay at --tap-min regardless
@@ -351,7 +364,7 @@
      while browsing other tabs, and shouldn't shrink their header too. */
   #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] .hero-main{ display:none; }
   #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] header#header{ height:auto; min-height:0; padding:.6rem 1.2rem; }
-  #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] .header-cal-toolbar{ margin-top:0; }
+  #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] .header-cal-toolbar-wrap{ margin-top:0; }
 
   .agenda-date-label{ font-weight:700; font-size:1.1rem; margin-bottom:.8rem; flex-shrink:0; }
   .agenda-list{ display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; flex:1; min-height:0; }
@@ -518,16 +531,19 @@
       </div>
     </div>
 
-    <div class="header-cal-toolbar" id="header-cal-toolbar">
-      <div class="glass-group">
-        <button class="glass-icon-btn" id="cal-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
-        <span class="today-label" id="cal-range-label">This Week</span>
-        <button class="glass-icon-btn" id="cal-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
-      </div>
-      <div id="family-filter"></div>
-      <div class="glass-segmented" id="cal-mode-toggle">
-        <button data-mode="week" class="is-active">Week</button>
-        <button data-mode="month">Month</button>
+    <div class="header-cal-toolbar-wrap" id="header-cal-toolbar-wrap">
+      <button class="today-btn" id="cal-today-btn" hidden>Back to Today</button>
+      <div class="header-cal-toolbar" id="header-cal-toolbar">
+        <div class="glass-group">
+          <button class="glass-icon-btn" id="cal-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <span class="today-label" id="cal-range-label">This Week</span>
+          <button class="glass-icon-btn" id="cal-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+        <div id="family-filter"></div>
+        <div class="glass-segmented" id="cal-mode-toggle">
+          <button data-mode="week" class="is-active">Week</button>
+          <button data-mode="month">Month</button>
+        </div>
       </div>
     </div>
   </header>
@@ -1253,7 +1269,7 @@ function setView(view){
   el('app').dataset.view = view;
   document.querySelectorAll('.view').forEach(v=> v.hidden = (v.id !== 'view-'+view));
   document.querySelectorAll('.nav-btn').forEach(b=> b.classList.toggle('is-active', b.dataset.view===view));
-  el('header-cal-toolbar').style.display = view==='calendar' ? '' : 'none';
+  el('header-cal-toolbar-wrap').style.display = view==='calendar' ? '' : 'none';
   if(view==='calendar') loadCalendarData();
   if(view==='chores') loadChores();
   if(view==='lists') loadLists();
@@ -1449,7 +1465,20 @@ function renderCalendarView(){
     el('cal-range-label').textContent = state.monthDate.toLocaleDateString(undefined,{month:'long', year:'numeric'});
     renderMonth();
   }
+  updateTodayButton();
 }
+function updateTodayButton(){
+  const today = new Date();
+  const onCurrent = state.calMode==='week'
+    ? sameDay(state.weekAnchor, today)
+    : (state.monthDate.getFullYear()===today.getFullYear() && state.monthDate.getMonth()===today.getMonth());
+  el('cal-today-btn').hidden = onCurrent;
+}
+el('cal-today-btn').addEventListener('click', ()=>{
+  if(state.calMode==='week') state.weekAnchor = new Date();
+  else state.monthDate = new Date();
+  loadCalendarData();
+});
 
 function eventsOn(day){
   return state.events.filter(e=> sameDay(new Date(e.start_at), day) && passesFilter(e.family_member_id));
