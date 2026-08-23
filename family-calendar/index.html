@@ -153,7 +153,7 @@
      in between. Other views keep the compact bar (content, not scenery,
      is the point there). */
   #app[data-view="calendar"] header#header{
-    height:38vh; min-height:260px; padding:1.5rem 1.7rem 1.2rem; justify-content:space-between;
+    height:50vh; min-height:260px; padding:1.5rem 1.7rem 1.2rem; justify-content:space-between;
   }
   #app[data-view="calendar"] .hero-clock-block .clock{ font-size:7.4vmin; }
   #app[data-view="calendar"] .hero-clock-block .subline{ font-size:2.1vmin; }
@@ -283,10 +283,12 @@
   }
   .day-col:last-child{ border-right:none; }
   .day-col.is-drop-target{ background:color-mix(in srgb, var(--accent) 10%, transparent); }
-  .day-col .col-head{ display:flex; flex-direction:column; gap:.1rem; flex-shrink:0; }
-  .day-col .col-head .dnum{ font-size:3rem; font-weight:800; line-height:1; }
-  .day-col .col-head .dname{ font-size:.78rem; color:var(--ink-muted); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
-  .day-col.is-today .col-head .dname{ color:var(--accent); }
+  .day-col .col-head{
+    display:flex; flex-direction:column; gap:.1rem; flex-shrink:0;
+    padding-bottom:.6rem; margin-bottom:.1rem; border-bottom:1px solid var(--gridline);
+  }
+  .day-col .col-head .dnum{ font-size:3rem; font-weight:800; line-height:1; color:var(--ink); }
+  .day-col .col-head .dname{ font-size:.78rem; color:var(--ink); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
   .day-col .col-events{ display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; min-height:0; }
 
   /* Shared compact event row — text directly on the flat background, a
