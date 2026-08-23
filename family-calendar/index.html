@@ -79,14 +79,13 @@
     gap:1rem; padding: 1.1rem 1.4rem; background:var(--surface); border-bottom:1px solid var(--border);
     flex-wrap:wrap;
   }
-  .header-date{ display:flex; flex-direction:column; gap:.1rem; }
-  .header-date .dow{ font-size:1.5rem; font-weight:700; letter-spacing:.01em; }
-  .header-date .full-date{ font-size:1rem; color:var(--ink-secondary); font-weight:500; }
+  .header-date{ display:flex; flex-direction:column; gap:.15rem; }
+  .header-date .clock{ font-size:2.1rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
+  .header-date .subline{ font-size:.95rem; color:var(--ink-secondary); font-weight:600; }
   .header-right{ display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap; }
   .weather{ display:flex; align-items:center; gap:.5rem; font-size:1.6rem; font-weight:600; }
   .weather .wicon{ font-size:2rem; line-height:1; }
   .weather .wtemp{ font-size:1.5rem; }
-  .clock{ font-size:1.7rem; font-weight:700; font-variant-numeric:tabular-nums; }
 
   #family-filter{
     display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; flex-basis:100%;
@@ -159,57 +158,58 @@
   .segmented button.is-active{ background:var(--accent); color:var(--accent-ink); }
   .today-label{ font-weight:700; font-size:1.05rem; }
 
-  /* Calendar: week list (portrait) ---------------------------------------- */
-  .week-list{ display:flex; flex-direction:column; gap:.6rem; }
-  .day-row{
-    display:flex; align-items:flex-start; gap:.9rem; background:var(--surface); border-radius:var(--radius-md);
-    padding:.8rem 1rem; border:2px solid transparent;
-  }
-  .day-row.is-today{ border-color:var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
-  .day-row .day-label{ width:3.6rem; flex-shrink:0; text-align:center; }
-  .day-row .day-label .dnum{ font-size:1.5rem; font-weight:800; display:block; line-height:1.1; }
-  .day-row .day-label .dname{ font-size:.75rem; color:var(--ink-muted); font-weight:600; text-transform:uppercase; }
-  .day-row .chips{ display:flex; flex-wrap:wrap; gap:.4rem; flex:1; min-height:var(--tap-min); align-items:center; }
-  .day-row .chips .empty{ color:var(--ink-muted); font-size:.9rem; }
+  /* Calendar shell: fills the view, no page-level scroll except where noted */
+  #view-calendar.view{ display:flex; flex-direction:column; overflow:hidden; }
+  #view-calendar .view-toolbar{ flex-shrink:0; }
+  #calendar-week, #calendar-month-wrap{ flex:1; min-height:0; }
 
-  .event-chip{
-    display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .7rem; border-radius:999px; color:#fff;
-    font-size:.85rem; font-weight:600; max-width:16rem; min-height:var(--tap-min); cursor:pointer; border:none;
-    overflow:hidden;
+  /* Calendar: week — a wrapping grid of day-cards, same shape both orientations */
+  .week-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(10.5rem,1fr)); grid-auto-rows:1fr; gap:.6rem; height:100%; }
+  .day-col{
+    background:var(--surface); border:1px solid var(--gridline); border-radius:var(--radius-sm); padding:.6rem;
+    display:flex; flex-direction:column; gap:.4rem; min-width:0; min-height:0;
   }
-  .event-chip .etitle{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .event-chip .etime{ opacity:.85; font-weight:500; flex-shrink:0; }
-
-  /* Calendar: week columns (landscape) ------------------------------------ */
-  .week-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:.6rem; height:100%; }
-  .day-col{ background:var(--surface); border-radius:var(--radius-md); padding:.7rem; display:flex; flex-direction:column; gap:.5rem; border:2px solid transparent; min-height:0; }
   .day-col.is-today{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, var(--surface)); }
-  .day-col .col-head{ text-align:center; padding-bottom:.4rem; border-bottom:1px solid var(--gridline); }
-  .day-col .col-head .dnum{ font-size:1.3rem; font-weight:800; }
-  .day-col .col-head .dname{ font-size:.7rem; color:var(--ink-muted); font-weight:700; text-transform:uppercase; }
-  .day-col .col-events{ display:flex; flex-direction:column; gap:.4rem; overflow-y:auto; }
-  .day-col .event-chip{ max-width:none; width:100%; justify-content:flex-start; }
+  .day-col .col-head{ display:flex; align-items:baseline; gap:.4rem; padding-bottom:.3rem; border-bottom:1px solid var(--gridline); flex-shrink:0; }
+  .day-col .col-head .dname{ font-weight:700; font-size:.85rem; }
+  .day-col .col-head .dnum{ font-size:.8rem; color:var(--ink-muted); font-weight:600; }
+  .day-col .col-events{ display:flex; flex-direction:column; gap:.35rem; overflow-y:auto; min-height:0; }
 
-  /* Day view ---------------------------------------------------------- */
-  .day-view-list{ display:flex; flex-direction:column; gap:.5rem; }
-  .day-view-event{ display:flex; gap:.9rem; align-items:center; background:var(--surface); border-radius:var(--radius-md); padding:.9rem 1rem; cursor:pointer; min-height:var(--tap-primary); }
-  .day-view-event .swatch{ width:10px; align-self:stretch; border-radius:6px; flex-shrink:0; }
-  .day-view-event .body{ display:flex; flex-direction:column; gap:.15rem; }
-  .day-view-event .time{ font-size:.85rem; color:var(--ink-secondary); font-weight:600; }
-  .day-view-event .title{ font-size:1.05rem; font-weight:700; }
-
-  /* Month view ---------------------------------------------------------- */
-  .month-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:.4rem; }
-  .month-dow{ text-align:center; font-size:.75rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding-bottom:.3rem; }
-  .month-cell{
-    aspect-ratio:1/1; background:var(--surface); border-radius:var(--radius-sm); display:flex; flex-direction:column;
-    align-items:center; justify-content:flex-start; padding:.4rem; cursor:pointer; border:2px solid transparent; gap:.3rem;
+  /* Shared compact event row — used in week day-cards and the month agenda panel */
+  .event-row{
+    display:flex; flex-direction:column; align-items:flex-start; gap:.05rem; width:100%; text-align:left;
+    background:var(--bg); border:none; border-left:3px solid var(--accent); border-radius:6px; padding:.4rem .55rem;
+    cursor:pointer; font-family:inherit;
   }
-  .month-cell.is-today{ border-color:var(--accent); }
+  .event-row .ername{ font-size:.82rem; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+  .event-row .ertime{ font-size:.72rem; color:var(--ink-secondary); font-weight:600; }
+
+  /* Calendar: month — condensed thin-line grid + a persistent agenda panel */
+  .month-wrap{ display:flex; flex-direction:column; gap:.8rem; height:100%; min-height:0; }
+  #app[data-orientation="landscape"] .month-wrap{ flex-direction:row; }
+  .month-grid-pane{ flex:1.3; min-height:0; min-width:0; display:flex; flex-direction:column; }
+  .month-agenda-pane{
+    flex:1; min-height:0; min-width:0; display:flex; flex-direction:column;
+    background:var(--surface); border-radius:var(--radius-md); padding:.9rem;
+  }
+  .month-grid{
+    display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:auto repeat(6,1fr);
+    border-top:1px solid var(--gridline); border-left:1px solid var(--gridline); flex:1; min-height:0;
+  }
+  .month-dow{ text-align:center; font-size:.68rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding:.3rem 0; }
+  .month-cell{
+    border-right:1px solid var(--gridline); border-bottom:1px solid var(--gridline); display:flex; flex-direction:column;
+    align-items:flex-start; padding:.3rem .4rem; cursor:pointer; gap:.25rem; min-height:0; min-width:0;
+  }
+  .month-cell.is-today .mnum{ color:var(--accent); }
+  .month-cell.is-selected{ background:color-mix(in srgb, var(--accent) 12%, var(--surface)); }
   .month-cell.is-other-month{ opacity:.35; }
-  .month-cell .mnum{ font-weight:700; font-size:.95rem; }
-  .month-cell .mdots{ display:flex; gap:.2rem; flex-wrap:wrap; justify-content:center; }
-  .month-cell .mdots span{ width:7px; height:7px; border-radius:50%; }
+  .month-cell .mnum{ font-weight:700; font-size:.85rem; }
+  .month-cell .mdots{ display:flex; gap:.2rem; flex-wrap:wrap; }
+  .month-cell .mdots span{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+  .agenda-date-label{ font-weight:700; font-size:1rem; margin-bottom:.6rem; flex-shrink:0; }
+  .agenda-list{ display:flex; flex-direction:column; gap:.4rem; overflow-y:auto; flex:1; min-height:0; }
 
   /* Chores --------------------------------------------------------------- */
   .chore-section{ margin-bottom:1.4rem; }
@@ -350,11 +350,10 @@
 <div id="app" data-orientation="portrait">
   <header id="header">
     <div class="header-date">
-      <span class="dow" id="hdr-dow">Sunday</span>
-      <span class="full-date" id="hdr-date">January 1</span>
+      <span class="clock" id="hdr-clock">--:--</span>
+      <span class="subline" id="hdr-date">Sunday, January 1</span>
     </div>
     <div class="header-right">
-      <div class="clock" id="hdr-clock">--:--</div>
       <div class="weather" id="hdr-weather"><span class="wicon">—</span><span class="wtemp"></span></div>
     </div>
     <div id="family-filter"></div>
@@ -373,14 +372,20 @@
         </div>
         <div class="segmented" id="cal-mode-toggle">
           <button data-mode="week" class="is-active">Week</button>
-          <button data-mode="day">Day</button>
           <button data-mode="month">Month</button>
         </div>
       </div>
 
       <div id="calendar-week"></div>
-      <div id="calendar-day" style="display:none"></div>
-      <div id="calendar-month" style="display:none"></div>
+      <div id="calendar-month-wrap" class="month-wrap" style="display:none">
+        <div class="month-grid-pane">
+          <div class="month-grid" id="calendar-month"></div>
+        </div>
+        <div class="month-agenda-pane">
+          <div class="agenda-date-label" id="agenda-date-label">Today</div>
+          <div class="agenda-list" id="calendar-agenda-list"></div>
+        </div>
+      </div>
     </section>
 
     <section id="view-chores" class="view" hidden>
@@ -899,8 +904,8 @@ const state = {
   activeFilter: new Set(), // empty set = show all
   calMode: 'week',
   weekStart: startOfWeek(new Date()),
-  dayDate: new Date(),
   monthDate: new Date(),
+  selectedDate: new Date(), // which day the month view's agenda panel shows
 };
 
 function el(id){ return document.getElementById(id); }
@@ -947,8 +952,7 @@ function setView(view){
 function tickClock(){
   const now = new Date();
   el('hdr-clock').textContent = fmtTime(now);
-  el('hdr-dow').textContent = now.toLocaleDateString(undefined,{weekday:'long'});
-  el('hdr-date').textContent = now.toLocaleDateString(undefined,{month:'long', day:'numeric'});
+  el('hdr-date').textContent = now.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
   if(state.orientation) applyDarkModeSchedule(now);
   if(now.getHours()===RELOAD_HOUR_LOCAL && now.getMinutes()===0 && now.getSeconds()<3){
     location.reload();
@@ -1046,10 +1050,13 @@ document.querySelectorAll('#cal-mode-toggle button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('#cal-mode-toggle button').forEach(b=>b.classList.remove('is-active'));
     btn.classList.add('is-active');
-    state.calMode = btn.dataset.mode;
-    el('calendar-week').style.display = state.calMode==='week' ? '' : 'none';
-    el('calendar-day').style.display = state.calMode==='day' ? '' : 'none';
-    el('calendar-month').style.display = state.calMode==='month' ? '' : 'none';
+    const mode = btn.dataset.mode;
+    // Keep the two views looking at the same stretch of time as you switch.
+    if(mode==='month') state.monthDate = new Date(state.weekStart);
+    else state.weekStart = startOfWeek(state.monthDate);
+    state.calMode = mode;
+    el('calendar-week').style.display = mode==='week' ? '' : 'none';
+    el('calendar-month-wrap').style.display = mode==='month' ? '' : 'none';
     loadCalendarData();
   });
 });
@@ -1057,7 +1064,6 @@ el('cal-prev').addEventListener('click', ()=> calNav(-1));
 el('cal-next').addEventListener('click', ()=> calNav(1));
 function calNav(dir){
   if(state.calMode==='week') state.weekStart = addDays(state.weekStart, 7*dir);
-  else if(state.calMode==='day') state.dayDate = addDays(state.dayDate, dir);
   else { const d = new Date(state.monthDate); d.setMonth(d.getMonth()+dir); state.monthDate = d; }
   loadCalendarData();
 }
@@ -1065,8 +1071,7 @@ function calNav(dir){
 async function loadCalendarData(){
   let rangeStart, rangeEnd;
   if(state.calMode==='week'){ rangeStart = state.weekStart; rangeEnd = addDays(state.weekStart,7); }
-  else if(state.calMode==='day'){ rangeStart = new Date(state.dayDate); rangeStart.setHours(0,0,0,0); rangeEnd = addDays(rangeStart,1); }
-  else { rangeStart = new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1); rangeStart = startOfWeek(rangeStart); rangeEnd = addDays(rangeStart, 42); }
+  else { rangeStart = startOfWeek(new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1)); rangeEnd = addDays(rangeStart, 42); }
 
   state.events = await db.listEvents(rangeStart.toISOString(), rangeEnd.toISOString());
   renderCalendarView();
@@ -1076,100 +1081,81 @@ function renderCalendarView(){
   if(state.calMode==='week'){
     el('cal-range-label').textContent = `${state.weekStart.toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${addDays(state.weekStart,6).toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
     renderWeek();
-  } else if(state.calMode==='day'){
-    el('cal-range-label').textContent = state.dayDate.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
-    renderDay();
   } else {
     el('cal-range-label').textContent = state.monthDate.toLocaleDateString(undefined,{month:'long', year:'numeric'});
     renderMonth();
+    renderAgenda();
   }
 }
 
 function eventsOn(day){
   return state.events.filter(e=> sameDay(new Date(e.start_at), day) && passesFilter(e.family_member_id));
 }
-function chipHtml(e){
+function eventRowHtml(e){
   const m = memberById(e.family_member_id);
   const color = m ? colorFor(m.color_hex) : 'var(--ink-muted)';
   const time = e.all_day ? 'All day' : fmtTime(new Date(e.start_at));
-  return `<button class="event-chip" style="background:${color}" data-id="${e.id}"><span class="etime">${time}</span><span class="etitle">${escapeHtml(e.title)}</span></button>`;
+  return `<button class="event-row" style="border-left-color:${color}" data-id="${e.id}"><span class="ername">${escapeHtml(e.title)}</span><span class="ertime">${time}</span></button>`;
 }
-function bindChips(container){
-  container.querySelectorAll('.event-chip').forEach(chip=>{
-    chip.addEventListener('click', ()=> openEventModal(state.events.find(e=>e.id===chip.dataset.id)));
+function bindEventRows(container){
+  container.querySelectorAll('.event-row').forEach(row=>{
+    row.addEventListener('click', ()=> openEventModal(state.events.find(e=>e.id===row.dataset.id)));
   });
 }
 
 function renderWeek(){
   const container = el('calendar-week');
-  const isLandscape = state.orientation==='landscape';
   container.innerHTML = '';
   const wrap = document.createElement('div');
-  wrap.className = isLandscape ? 'week-grid' : 'week-list';
+  wrap.className = 'week-grid';
   for(let i=0;i<7;i++){
     const day = addDays(state.weekStart, i);
     const today = sameDay(day, new Date());
     const dayEvents = eventsOn(day);
-    if(isLandscape){
-      const col = document.createElement('div');
-      col.className = 'day-col' + (today?' is-today':'');
-      col.innerHTML = `<div class="col-head"><div class="dnum">${day.getDate()}</div><div class="dname">${day.toLocaleDateString(undefined,{weekday:'short'})}</div></div>
-        <div class="col-events">${dayEvents.length? dayEvents.map(chipHtml).join('') : '<div class="empty-state" style="padding:1rem 0">No events</div>'}</div>`;
-      wrap.appendChild(col);
-    } else {
-      const row = document.createElement('div');
-      row.className = 'day-row' + (today?' is-today':'');
-      row.innerHTML = `<div class="day-label"><span class="dnum">${day.getDate()}</span><span class="dname">${day.toLocaleDateString(undefined,{weekday:'short'})}</span></div>
-        <div class="chips">${dayEvents.length? dayEvents.map(chipHtml).join('') : '<span class="empty">No events</span>'}</div>`;
-      wrap.appendChild(row);
-    }
+    const col = document.createElement('div');
+    col.className = 'day-col' + (today?' is-today':'');
+    col.innerHTML = `<div class="col-head"><span class="dname">${day.toLocaleDateString(undefined,{weekday:'short'})}</span><span class="dnum">${day.getDate()}</span></div>
+      <div class="col-events">${dayEvents.length? dayEvents.map(eventRowHtml).join('') : '<div class="empty-state" style="padding:.6rem 0;font-size:.85rem;">No events</div>'}</div>`;
+    wrap.appendChild(col);
   }
   container.appendChild(wrap);
-  bindChips(container);
+  bindEventRows(container);
 }
 
-function renderDay(){
-  const container = el('calendar-day');
-  const dayEvents = eventsOn(state.dayDate);
-  if(!dayEvents.length){ container.innerHTML = '<div class="empty-state">No events today</div>'; return; }
-  container.innerHTML = `<div class="day-view-list">${dayEvents.map(e=>{
-    const m = memberById(e.family_member_id);
-    const color = m ? colorFor(m.color_hex) : 'var(--ink-muted)';
-    const time = e.all_day ? 'All day' : `${fmtTime(new Date(e.start_at))}${e.end_at? ' – '+fmtTime(new Date(e.end_at)):''}`;
-    return `<div class="day-view-event" data-id="${e.id}"><div class="swatch" style="background:${color}"></div><div class="body"><div class="time">${time}</div><div class="title">${escapeHtml(e.title)}</div></div></div>`;
-  }).join('')}</div>`;
-  container.querySelectorAll('.day-view-event').forEach(row=>{
-    row.addEventListener('click', ()=> openEventModal(state.events.find(e=>e.id===row.dataset.id)));
-  });
+function renderAgenda(){
+  const isToday = sameDay(state.selectedDate, new Date());
+  el('agenda-date-label').textContent = state.selectedDate.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'}) + (isToday ? ' · Today' : '');
+  const container = el('calendar-agenda-list');
+  const dayEvents = eventsOn(state.selectedDate);
+  container.innerHTML = dayEvents.length ? dayEvents.map(eventRowHtml).join('') : '<div class="empty-state">No events</div>';
+  bindEventRows(container);
 }
 
 function renderMonth(){
   const container = el('calendar-month');
   const gridStart = startOfWeek(new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1));
   const dows = ['S','M','T','W','T','F','S'];
-  let html = '<div class="month-grid">' + dows.map(d=>`<div class="month-dow">${d}</div>`).join('');
+  let html = dows.map(d=>`<div class="month-dow">${d}</div>`).join('');
   for(let i=0;i<42;i++){
     const day = addDays(gridStart, i);
     const inMonth = day.getMonth()===state.monthDate.getMonth();
     const today = sameDay(day, new Date());
+    const selected = sameDay(day, state.selectedDate);
     const dayEvents = eventsOn(day);
     const dots = dayEvents.slice(0,4).map(e=>{
       const m = memberById(e.family_member_id);
       return `<span style="background:${m?colorFor(m.color_hex):'var(--ink-muted)'}"></span>`;
     }).join('');
-    html += `<div class="month-cell${today?' is-today':''}${inMonth?'':' is-other-month'}" data-date="${localDateStr(day)}">
+    html += `<div class="month-cell${today?' is-today':''}${selected?' is-selected':''}${inMonth?'':' is-other-month'}" data-date="${localDateStr(day)}">
       <span class="mnum">${day.getDate()}</span><span class="mdots">${dots}</span></div>`;
   }
-  html += '</div>';
   container.innerHTML = html;
   container.querySelectorAll('.month-cell').forEach(cell=>{
     cell.addEventListener('click', ()=>{
       const [y,mo,d] = cell.dataset.date.split('-').map(Number);
-      state.dayDate = new Date(y, mo-1, d);
-      document.querySelectorAll('#cal-mode-toggle button').forEach(b=>b.classList.toggle('is-active', b.dataset.mode==='day'));
-      state.calMode = 'day';
-      el('calendar-week').style.display='none'; el('calendar-month').style.display='none'; el('calendar-day').style.display='';
-      loadCalendarData();
+      state.selectedDate = new Date(y, mo-1, d);
+      renderMonth();
+      renderAgenda();
     });
   });
 }
