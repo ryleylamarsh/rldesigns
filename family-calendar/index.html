@@ -1,0 +1,1467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Family Calendar</title>
+<meta name="description" content="Family wall calendar — shared calendar, chores, and lists.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#fcfcfb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calendar">
+<link rel="apple-touch-icon" href="icons/icon-192.svg">
+<link rel="icon" href="icons/icon-192.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ---------------------------------------------------------------------
+     Design tokens
+     Palette source: dataviz-skill validated categorical set (adjacent-pair
+     CVD-safe in both light & dark). Family colors are always paired with a
+     name/initials label, never color-alone, per the skill's relief rule.
+     --------------------------------------------------------------------- */
+  :root{
+    --bg:#f9f9f7; --surface:#fcfcfb; --surface-2:#ffffff;
+    --ink:#0b0b0b; --ink-secondary:#52514e; --ink-muted:#898781;
+    --border:rgba(11,11,11,0.10); --gridline:#e1e0d9; --baseline:#c3c2b7;
+    --accent:#2a78d6; --accent-ink:#ffffff;
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --radius-lg:20px; --radius-md:14px; --radius-sm:10px;
+    --font:'Poppins',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --shadow:0 2px 10px rgba(11,11,11,0.06), 0 1px 2px rgba(11,11,11,0.04);
+    --tap-min:48px; --tap-primary:60px;
+    color-scheme: light;
+  }
+  html[data-theme="dark"]{
+    --bg:#0d0d0d; --surface:#1a1a19; --surface-2:#242422;
+    --ink:#ffffff; --ink-secondary:#c3c2b7; --ink-muted:#8f8e88;
+    --border:rgba(255,255,255,0.12); --gridline:#2c2c2a; --baseline:#383835;
+    --accent:#3987e5; --accent-ink:#ffffff;
+    --shadow:0 2px 14px rgba(0,0,0,0.45);
+    color-scheme: dark;
+  }
+  *,*::before,*::after{ box-sizing:border-box; }
+  html{ font-size: clamp(15px, 1.05vmin + 9px, 21px); -webkit-tap-highlight-color: transparent; }
+  body{
+    margin:0; min-height:100vh; min-height:100dvh; background:var(--bg); color:var(--ink);
+    font-family:var(--font); font-weight:400; overflow:hidden;
+    transition: background .6s ease, color .6s ease;
+  }
+  button{ font-family:inherit; }
+  h1,h2,h3{ margin:0; font-weight:700; }
+  p{ margin:0; }
+  ul{ list-style:none; margin:0; padding:0; }
+  input,select,textarea{ font-family:inherit; font-size:1rem; }
+  .visually-hidden{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+
+  /* ---------------------------------------------------------------------
+     App shell
+     --------------------------------------------------------------------- */
+  #app{
+    height:100vh; height:100dvh; width:100vw; display:grid; overflow:hidden;
+  }
+  #app[data-orientation="portrait"]{
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas: "header" "banner" "main" "nav";
+  }
+  #app[data-orientation="landscape"]{
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "nav header" "nav banner" "nav main";
+  }
+
+  /* Header ---------------------------------------------------------- */
+  header#header{
+    grid-area: header; display:flex; align-items:center; justify-content:space-between;
+    gap:1rem; padding: 1.1rem 1.4rem; background:var(--surface); border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .header-date{ display:flex; flex-direction:column; gap:.1rem; }
+  .header-date .dow{ font-size:1.5rem; font-weight:700; letter-spacing:.01em; }
+  .header-date .full-date{ font-size:1rem; color:var(--ink-secondary); font-weight:500; }
+  .header-right{ display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap; }
+  .weather{ display:flex; align-items:center; gap:.5rem; font-size:1.6rem; font-weight:600; }
+  .weather .wicon{ font-size:2rem; line-height:1; }
+  .weather .wtemp{ font-size:1.5rem; }
+  .clock{ font-size:1.7rem; font-weight:700; font-variant-numeric:tabular-nums; }
+
+  #family-filter{
+    display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; padding: 0 1.4rem .9rem;
+    background:var(--surface);
+  }
+  #app[data-orientation="portrait"] #family-filter{ grid-area: unset; }
+  #app[data-orientation="landscape"] header#header{ align-items:flex-start; flex-direction:column; gap:.6rem; }
+  #app[data-orientation="landscape"] #family-filter{ padding: 0 1.4rem .8rem; }
+  .filter-chip{
+    display:flex; align-items:center; gap:.4rem; min-height:var(--tap-min); padding:.35rem .8rem .35rem .35rem;
+    border-radius:999px; border:2px solid transparent; background:var(--surface-2); cursor:pointer;
+    box-shadow:var(--shadow); opacity:1; transition: opacity .2s ease, border-color .2s ease, transform .15s ease;
+  }
+  .filter-chip.is-off{ opacity:.4; }
+  .filter-chip:active{ transform:scale(.96); }
+  .filter-chip .avatar{ width:36px; height:36px; }
+  .filter-chip .fname{ font-size:.95rem; font-weight:600; }
+
+  .avatar{
+    width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:700; font-size:1rem; flex-shrink:0; letter-spacing:.02em;
+  }
+
+  /* Countdown banner -------------------------------------------------- */
+  #countdown-banner{
+    grid-area: banner; display:none; align-items:center; justify-content:center; gap:.6rem;
+    background:var(--accent); color:var(--accent-ink); padding:.55rem 1rem; font-weight:600; font-size:1rem;
+    text-align:center;
+  }
+  #countdown-banner.is-active{ display:flex; }
+
+  /* Nav ---------------------------------------------------------------- */
+  nav#nav{
+    grid-area: nav; display:flex; background:var(--surface); border-top:1px solid var(--border);
+    z-index:5;
+  }
+  #app[data-orientation="portrait"] nav#nav{ flex-direction:row; justify-content:space-around; padding:.4rem .6rem; }
+  #app[data-orientation="landscape"] nav#nav{
+    flex-direction:column; justify-content:flex-start; align-items:center; gap:.5rem;
+    border-top:none; border-right:1px solid var(--border); padding:1rem .6rem; width:5.5rem;
+  }
+  .nav-btn{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.2rem;
+    min-width:var(--tap-primary); min-height:var(--tap-primary); border:none; background:none; cursor:pointer;
+    color:var(--ink-muted); border-radius:var(--radius-md); padding:.4rem .6rem;
+  }
+  .nav-btn .icon{ font-size:1.6rem; line-height:1; }
+  .nav-btn .label{ font-size:.7rem; font-weight:600; }
+  .nav-btn.is-active{ color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); }
+  .nav-spacer{ flex:1; }
+  .nav-btn.settings-btn{ color:var(--ink-muted); opacity:.75; }
+  .nav-btn.settings-btn .icon{ font-size:1.4rem; }
+  #app[data-orientation="landscape"] .nav-spacer{ display:block; }
+
+  /* Main / views --------------------------------------------------------- */
+  main#main{ grid-area: main; overflow:hidden; position:relative; background:var(--bg); }
+  .view{ position:absolute; inset:0; overflow-y:auto; padding:1.2rem 1.4rem 2rem; }
+  .view[hidden]{ display:none; }
+
+  .view-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:.8rem; margin-bottom:1rem; flex-wrap:wrap; }
+  .toolbar-nav{ display:flex; align-items:center; gap:.5rem; }
+  .icon-btn{
+    display:flex; align-items:center; justify-content:center; width:var(--tap-min); height:var(--tap-min);
+    border-radius:50%; border:none; background:var(--surface-2); color:var(--ink); cursor:pointer; font-size:1.3rem;
+    box-shadow:var(--shadow);
+  }
+  .icon-btn:active{ transform:scale(.94); }
+  .segmented{ display:flex; background:var(--surface-2); border-radius:999px; padding:.25rem; box-shadow:var(--shadow); }
+  .segmented button{
+    border:none; background:none; padding:.5rem 1.1rem; border-radius:999px; font-weight:600; color:var(--ink-secondary);
+    cursor:pointer; min-height:2.4rem;
+  }
+  .segmented button.is-active{ background:var(--accent); color:var(--accent-ink); }
+  .today-label{ font-weight:700; font-size:1.05rem; }
+
+  /* Calendar: week list (portrait) ---------------------------------------- */
+  .week-list{ display:flex; flex-direction:column; gap:.6rem; }
+  .day-row{
+    display:flex; align-items:flex-start; gap:.9rem; background:var(--surface); border-radius:var(--radius-md);
+    padding:.8rem 1rem; border:2px solid transparent;
+  }
+  .day-row.is-today{ border-color:var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+  .day-row .day-label{ width:3.6rem; flex-shrink:0; text-align:center; }
+  .day-row .day-label .dnum{ font-size:1.5rem; font-weight:800; display:block; line-height:1.1; }
+  .day-row .day-label .dname{ font-size:.75rem; color:var(--ink-muted); font-weight:600; text-transform:uppercase; }
+  .day-row .chips{ display:flex; flex-wrap:wrap; gap:.4rem; flex:1; min-height:var(--tap-min); align-items:center; }
+  .day-row .chips .empty{ color:var(--ink-muted); font-size:.9rem; }
+
+  .event-chip{
+    display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .7rem; border-radius:999px; color:#fff;
+    font-size:.85rem; font-weight:600; max-width:16rem; min-height:var(--tap-min); cursor:pointer; border:none;
+    overflow:hidden;
+  }
+  .event-chip .etitle{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .event-chip .etime{ opacity:.85; font-weight:500; flex-shrink:0; }
+
+  /* Calendar: week columns (landscape) ------------------------------------ */
+  .week-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:.6rem; height:100%; }
+  .day-col{ background:var(--surface); border-radius:var(--radius-md); padding:.7rem; display:flex; flex-direction:column; gap:.5rem; border:2px solid transparent; min-height:0; }
+  .day-col.is-today{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+  .day-col .col-head{ text-align:center; padding-bottom:.4rem; border-bottom:1px solid var(--gridline); }
+  .day-col .col-head .dnum{ font-size:1.3rem; font-weight:800; }
+  .day-col .col-head .dname{ font-size:.7rem; color:var(--ink-muted); font-weight:700; text-transform:uppercase; }
+  .day-col .col-events{ display:flex; flex-direction:column; gap:.4rem; overflow-y:auto; }
+  .day-col .event-chip{ max-width:none; width:100%; justify-content:flex-start; }
+
+  /* Day view ---------------------------------------------------------- */
+  .day-view-list{ display:flex; flex-direction:column; gap:.5rem; }
+  .day-view-event{ display:flex; gap:.9rem; align-items:center; background:var(--surface); border-radius:var(--radius-md); padding:.9rem 1rem; cursor:pointer; min-height:var(--tap-primary); }
+  .day-view-event .swatch{ width:10px; align-self:stretch; border-radius:6px; flex-shrink:0; }
+  .day-view-event .body{ display:flex; flex-direction:column; gap:.15rem; }
+  .day-view-event .time{ font-size:.85rem; color:var(--ink-secondary); font-weight:600; }
+  .day-view-event .title{ font-size:1.05rem; font-weight:700; }
+
+  /* Month view ---------------------------------------------------------- */
+  .month-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:.4rem; }
+  .month-dow{ text-align:center; font-size:.75rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding-bottom:.3rem; }
+  .month-cell{
+    aspect-ratio:1/1; background:var(--surface); border-radius:var(--radius-sm); display:flex; flex-direction:column;
+    align-items:center; justify-content:flex-start; padding:.4rem; cursor:pointer; border:2px solid transparent; gap:.3rem;
+  }
+  .month-cell.is-today{ border-color:var(--accent); }
+  .month-cell.is-other-month{ opacity:.35; }
+  .month-cell .mnum{ font-weight:700; font-size:.95rem; }
+  .month-cell .mdots{ display:flex; gap:.2rem; flex-wrap:wrap; justify-content:center; }
+  .month-cell .mdots span{ width:7px; height:7px; border-radius:50%; }
+
+  /* Chores --------------------------------------------------------------- */
+  .chore-section{ margin-bottom:1.4rem; }
+  .chore-section-head{ display:flex; align-items:center; gap:.6rem; margin-bottom:.6rem; padding:.4rem .6rem; border-radius:var(--radius-sm); }
+  .chore-section-head h2{ font-size:1.15rem; }
+  .chore-row{
+    display:flex; align-items:center; gap:.8rem; background:var(--surface); border-radius:var(--radius-md);
+    padding:.7rem .9rem; margin-bottom:.5rem; min-height:var(--tap-primary);
+  }
+  .chore-row .drag-handle{ color:var(--ink-muted); font-size:1.3rem; cursor:grab; padding:.4rem; }
+  .checkbox{
+    width:2rem; height:2rem; border-radius:8px; border:2px solid var(--baseline); flex-shrink:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; background:var(--surface-2);
+  }
+  .checkbox.is-checked{ background:var(--good); border-color:var(--good); color:#fff; }
+  .chore-row .ctitle{ flex:1; font-size:1rem; font-weight:600; }
+  .chore-row.is-done .ctitle{ text-decoration:line-through; color:var(--ink-muted); }
+  .chip-recurrence{ font-size:.7rem; font-weight:700; text-transform:uppercase; color:var(--ink-muted); background:var(--bg); padding:.25rem .55rem; border-radius:999px; }
+  .sortable-ghost{ opacity:.3; }
+
+  /* Lists ----------------------------------------------------------------- */
+  .lists-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(9.5rem,1fr)); gap:.8rem; }
+  .list-tile{
+    background:var(--surface); border-radius:var(--radius-lg); padding:1.1rem; min-height:7.5rem; display:flex;
+    flex-direction:column; justify-content:space-between; cursor:pointer; border-top:6px solid var(--accent); box-shadow:var(--shadow);
+  }
+  .list-tile h3{ font-size:1.05rem; }
+  .list-tile .count{ color:var(--ink-secondary); font-size:.85rem; font-weight:600; }
+  .add-list-tile{ display:flex; align-items:center; justify-content:center; border:2px dashed var(--baseline); background:none; box-shadow:none; color:var(--ink-muted); font-size:2rem; }
+
+  #list-detail{ display:none; flex-direction:column; height:100%; }
+  #list-detail.is-open{ display:flex; }
+  .list-detail-head{ display:flex; align-items:center; gap:.8rem; margin-bottom:1rem; }
+  .list-detail-head h2{ flex:1; font-size:1.3rem; }
+  .list-items{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:.4rem; }
+  .list-item-row{ display:flex; align-items:center; gap:.7rem; background:var(--surface); border-radius:var(--radius-md); padding:.6rem .8rem; min-height:var(--tap-primary); }
+  .list-item-row .itext{ flex:1; font-size:1rem; }
+  .list-item-row.is-done .itext{ text-decoration:line-through; color:var(--ink-muted); }
+  .item-delete{ width:var(--tap-min); height:var(--tap-min); border-radius:50%; border:none; background:none; color:var(--ink-muted); font-size:1.2rem; cursor:pointer; }
+  .add-item-bar{ display:flex; gap:.6rem; margin-top:.8rem; }
+  .add-item-bar input{ flex:1; min-height:var(--tap-primary); border-radius:var(--radius-md); border:2px solid var(--gridline); background:var(--surface); color:var(--ink); padding:0 1rem; font-size:1.05rem; }
+  .list-actions{ display:flex; justify-content:flex-end; margin-top:.6rem; }
+  .link-btn{ background:none; border:none; color:var(--ink-secondary); font-weight:600; font-size:.9rem; cursor:pointer; min-height:var(--tap-min); padding:0 .5rem; }
+
+  /* FAB -------------------------------------------------------------------- */
+  .fab{
+    position:absolute; right:1.4rem; bottom:1.4rem; width:var(--tap-primary); height:var(--tap-primary);
+    border-radius:50%; background:var(--accent); color:var(--accent-ink); border:none; font-size:1.8rem;
+    box-shadow:var(--shadow); cursor:pointer; z-index:4; display:flex; align-items:center; justify-content:center;
+  }
+  .fab:active{ transform:scale(.94); }
+
+  /* Settings -------------------------------------------------------------- */
+  .settings-section{ background:var(--surface); border-radius:var(--radius-lg); padding:1.1rem 1.2rem; margin-bottom:1rem; }
+  .settings-section h2{ font-size:1.1rem; margin-bottom:.8rem; }
+  .settings-row{ display:flex; align-items:center; gap:.8rem; padding:.6rem 0; border-top:1px solid var(--gridline); }
+  .settings-row:first-of-type{ border-top:none; }
+  .settings-row .srlabel{ flex:1; }
+  .settings-row .srname{ font-weight:700; }
+  .settings-row .srsub{ font-size:.8rem; color:var(--ink-secondary); }
+  .status-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .btn{
+    min-height:var(--tap-min); border-radius:999px; border:none; padding:0 1.1rem; font-weight:700; cursor:pointer;
+    background:var(--surface-2); color:var(--ink); box-shadow:var(--shadow);
+  }
+  .btn.primary{ background:var(--accent); color:var(--accent-ink); }
+  .btn.danger{ background:var(--critical); color:#fff; }
+  .btn.small{ min-height:2.4rem; padding:0 .8rem; font-size:.85rem; }
+  input[type=text], input[type=number], input[type=url], input[type=time]{
+    min-height:var(--tap-min); border-radius:var(--radius-sm); border:2px solid var(--gridline); background:var(--surface-2);
+    color:var(--ink); padding:0 .8rem; width:100%;
+  }
+  .field{ display:flex; flex-direction:column; gap:.35rem; margin-bottom:.9rem; }
+  .field label{ font-size:.85rem; font-weight:700; color:var(--ink-secondary); }
+  .color-swatches{ display:flex; flex-wrap:wrap; gap:.5rem; }
+  .swatch-btn{ width:2.6rem; height:2.6rem; border-radius:50%; border:3px solid transparent; cursor:pointer; }
+  .swatch-btn.is-selected{ border-color:var(--ink); }
+  .toggle-group{ display:flex; gap:.5rem; }
+  .toggle-group button{ flex:1; min-height:var(--tap-min); border-radius:var(--radius-sm); border:2px solid var(--gridline); background:var(--surface-2); color:var(--ink); font-weight:700; cursor:pointer; }
+  .toggle-group button.is-selected{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .avatar-pick-row{ display:flex; flex-wrap:wrap; gap:.6rem; }
+  .avatar-pick{ border:3px solid transparent; border-radius:50%; padding:0; background:none; cursor:pointer; }
+  .avatar-pick.is-selected{ border-color:var(--ink); }
+  .photo-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(6rem,1fr)); gap:.6rem; }
+  .photo-thumb{ position:relative; aspect-ratio:1/1; border-radius:var(--radius-sm); overflow:hidden; background:var(--bg); }
+  .photo-thumb img{ width:100%; height:100%; object-fit:cover; }
+  .photo-thumb .rm{ position:absolute; top:.2rem; right:.2rem; width:2rem; height:2rem; border-radius:50%; background:rgba(11,11,11,.55); color:#fff; border:none; }
+  .upload-tile{ display:flex; align-items:center; justify-content:center; border:2px dashed var(--baseline); border-radius:var(--radius-sm); aspect-ratio:1/1; color:var(--ink-muted); font-size:1.6rem; cursor:pointer; }
+
+  /* Modals ------------------------------------------------------------------ */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(11,11,11,.5); display:none; align-items:center; justify-content:center;
+    z-index:50; padding:1.2rem;
+  }
+  .modal-overlay.is-open{ display:flex; }
+  .modal{
+    background:var(--surface); border-radius:var(--radius-lg); padding:1.5rem; width:min(30rem,100%); max-height:88vh;
+    overflow-y:auto; box-shadow:0 10px 40px rgba(0,0,0,.3);
+  }
+  .modal h2{ font-size:1.4rem; margin-bottom:.3rem; }
+  .modal .modal-sub{ color:var(--ink-secondary); margin-bottom:1rem; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:.6rem; margin-top:1.2rem; }
+  .modal-close-x{ position:absolute; }
+  .event-detail-loc{ color:var(--ink-secondary); margin-top:.4rem; }
+  .event-detail-time{ font-weight:700; font-size:1.1rem; margin-top:.2rem; }
+
+  /* Screensaver --------------------------------------------------------- */
+  #screensaver{
+    position:fixed; inset:0; z-index:100; background:#000; opacity:0; pointer-events:none;
+    transition: opacity 1.6s ease;
+  }
+  #screensaver.is-active{ opacity:1; pointer-events:auto; }
+  #screensaver img{ width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity 1.6s ease; position:absolute; inset:0; }
+  #screensaver img.is-shown{ opacity:1; }
+  #screensaver .ss-clock{
+    position:absolute; left:2rem; bottom:2rem; color:#fff; font-weight:700; text-shadow:0 2px 10px rgba(0,0,0,.6);
+  }
+  #screensaver .ss-clock .t{ font-size:3rem; }
+  #screensaver .ss-clock .d{ font-size:1.1rem; opacity:.85; }
+  #screensaver .ss-empty{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#666; font-size:1.2rem; }
+
+  /* misc */
+  .empty-state{ color:var(--ink-muted); text-align:center; padding:3rem 1rem; font-size:1rem; }
+</style>
+</head>
+<body>
+
+<div id="app" data-orientation="portrait">
+  <header id="header">
+    <div class="header-date">
+      <span class="dow" id="hdr-dow">Sunday</span>
+      <span class="full-date" id="hdr-date">January 1</span>
+    </div>
+    <div class="header-right">
+      <div class="clock" id="hdr-clock">--:--</div>
+      <div class="weather" id="hdr-weather"><span class="wicon">—</span><span class="wtemp"></span></div>
+    </div>
+  </header>
+
+  <div id="countdown-banner"></div>
+
+  <div id="family-filter"></div>
+
+  <main id="main">
+
+    <section id="view-calendar" class="view">
+      <div class="view-toolbar">
+        <div class="toolbar-nav">
+          <button class="icon-btn" id="cal-prev" aria-label="Previous">‹</button>
+          <span class="today-label" id="cal-range-label">This Week</span>
+          <button class="icon-btn" id="cal-next" aria-label="Next">›</button>
+        </div>
+        <div class="segmented" id="cal-mode-toggle">
+          <button data-mode="week" class="is-active">Week</button>
+          <button data-mode="day">Day</button>
+          <button data-mode="month">Month</button>
+        </div>
+      </div>
+
+      <div id="calendar-week"></div>
+      <div id="calendar-day" style="display:none"></div>
+      <div id="calendar-month" style="display:none"></div>
+    </section>
+
+    <section id="view-chores" class="view" hidden>
+      <div class="view-toolbar">
+        <h1>Chores</h1>
+      </div>
+      <div id="chores-list"></div>
+      <button class="fab" id="fab-add-chore" aria-label="Add chore">+</button>
+    </section>
+
+    <section id="view-lists" class="view" hidden>
+      <div id="lists-overview">
+        <div class="view-toolbar"><h1>Lists</h1></div>
+        <div class="lists-grid" id="lists-grid"></div>
+      </div>
+      <div id="list-detail">
+        <div class="list-detail-head">
+          <button class="icon-btn" id="list-back" aria-label="Back">‹</button>
+          <h2 id="list-detail-title">List</h2>
+          <button class="icon-btn" id="list-delete-btn" aria-label="Delete list">🗑</button>
+        </div>
+        <div class="list-items" id="list-items"></div>
+        <div class="list-actions"><button class="link-btn" id="clear-completed">Clear completed</button></div>
+        <div class="add-item-bar">
+          <input type="text" id="new-item-input" placeholder="Add item…" maxlength="200">
+          <button class="icon-btn" id="add-item-btn" aria-label="Add item">+</button>
+        </div>
+      </div>
+      <button class="fab" id="fab-add-list" aria-label="Add list">+</button>
+    </section>
+
+    <section id="view-settings" class="view" hidden>
+      <div class="view-toolbar"><h1>Settings</h1></div>
+
+      <div class="settings-section">
+        <h2>Family members</h2>
+        <div id="settings-members"></div>
+        <button class="btn primary" id="add-member-btn" style="margin-top:.6rem">+ Add family member</button>
+      </div>
+
+      <div class="settings-section">
+        <h2>Google Calendar sync</h2>
+        <p class="modal-sub">Paste each person's "Secret address in iCal format" URL from Google Calendar → Settings → that calendar → Integrate calendar. Synced every 15 minutes by a server-side job — this URL is never stored or read from the browser.</p>
+        <div id="settings-ics"></div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Screensaver photos</h2>
+        <div class="photo-grid" id="photo-grid"></div>
+        <input type="file" id="photo-upload-input" accept="image/*" multiple class="visually-hidden">
+      </div>
+
+      <div class="settings-section">
+        <h2>Idle timeout</h2>
+        <div class="field">
+          <label for="idle-timeout-input">Minutes of no touch before the screensaver starts</label>
+          <input type="number" id="idle-timeout-input" min="1" max="120">
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Dark mode</h2>
+        <div class="toggle-group" id="darkmode-toggle">
+          <button data-val="auto" class="is-selected">Auto (sunset)</button>
+          <button data-val="on">Always on</button>
+          <button data-val="off">Always off</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Countdown banner</h2>
+        <div class="field">
+          <label for="countdown-label-input">Label (e.g. "Sarah's Birthday")</label>
+          <input type="text" id="countdown-label-input" maxlength="60">
+        </div>
+        <div class="field">
+          <label for="countdown-date-input">Date</label>
+          <input type="text" id="countdown-date-input" placeholder="YYYY-MM-DD">
+        </div>
+        <button class="btn primary" id="save-countdown-btn">Save countdown</button>
+        <button class="btn" id="clear-countdown-btn">Clear</button>
+      </div>
+    </section>
+
+  </main>
+
+  <nav id="nav">
+    <button class="nav-btn is-active" data-view="calendar"><span class="icon">📅</span><span class="label">Calendar</span></button>
+    <button class="nav-btn" data-view="chores"><span class="icon">✓</span><span class="label">Chores</span></button>
+    <button class="nav-btn" data-view="lists"><span class="icon">📋</span><span class="label">Lists</span></button>
+    <div class="nav-spacer"></div>
+    <button class="nav-btn settings-btn" data-view="settings"><span class="icon">⚙</span><span class="label">Settings</span></button>
+  </nav>
+</div>
+
+<!-- Event detail modal -->
+<div class="modal-overlay" id="modal-event">
+  <div class="modal">
+    <h2 id="ev-title">Event</h2>
+    <div class="event-detail-time" id="ev-time"></div>
+    <div class="event-detail-loc" id="ev-loc"></div>
+    <div class="modal-actions"><button class="btn primary" id="ev-close">Close</button></div>
+  </div>
+</div>
+
+<!-- Add / edit chore modal -->
+<div class="modal-overlay" id="modal-chore">
+  <div class="modal">
+    <h2 id="chore-modal-title">Add chore</h2>
+    <div class="field">
+      <label for="chore-title-input">Title</label>
+      <input type="text" id="chore-title-input" maxlength="100">
+    </div>
+    <div class="field">
+      <label>Assign to</label>
+      <div class="avatar-pick-row" id="chore-assignee-row"></div>
+    </div>
+    <div class="field">
+      <label>Repeats</label>
+      <div class="toggle-group" id="chore-recurrence-row">
+        <button data-val="none" class="is-selected">None</button>
+        <button data-val="daily">Daily</button>
+        <button data-val="weekly">Weekly</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="chore-delete-btn" style="display:none">Delete</button>
+      <button class="btn" id="chore-cancel-btn">Cancel</button>
+      <button class="btn primary" id="chore-save-btn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add list modal -->
+<div class="modal-overlay" id="modal-list">
+  <div class="modal">
+    <h2>New list</h2>
+    <div class="field">
+      <label for="list-name-input">Name</label>
+      <input type="text" id="list-name-input" maxlength="60">
+    </div>
+    <div class="field">
+      <label>Color</label>
+      <div class="color-swatches" id="list-color-row"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="list-cancel-btn">Cancel</button>
+      <button class="btn primary" id="list-save-btn">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / edit family member modal -->
+<div class="modal-overlay" id="modal-member">
+  <div class="modal">
+    <h2 id="member-modal-title">Add family member</h2>
+    <div class="field">
+      <label for="member-name-input">Name</label>
+      <input type="text" id="member-name-input" maxlength="40">
+    </div>
+    <div class="field">
+      <label for="member-initials-input">Initials (optional)</label>
+      <input type="text" id="member-initials-input" maxlength="2">
+    </div>
+    <div class="field">
+      <label>Color</label>
+      <div class="color-swatches" id="member-color-row"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="member-delete-btn" style="display:none">Delete</button>
+      <button class="btn" id="member-cancel-btn">Cancel</button>
+      <button class="btn primary" id="member-save-btn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Generic confirm -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal">
+    <h2 id="confirm-title">Are you sure?</h2>
+    <p class="modal-sub" id="confirm-body"></p>
+    <div class="modal-actions">
+      <button class="btn" id="confirm-cancel-btn">Cancel</button>
+      <button class="btn danger" id="confirm-ok-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="screensaver">
+  <div class="ss-empty" id="ss-empty">No screensaver photos yet — add some in Settings.</div>
+  <div class="ss-clock">
+    <div class="t" id="ss-time">--:--</div>
+    <div class="d" id="ss-date">—</div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* =========================================================================
+   CONFIG — fill these in after provisioning the Supabase project
+   (Settings → API in the Supabase dashboard). The anon/publishable key is
+   safe to ship client-side; it's the ics_url secrets that must never be —
+   see supabase/migrations/0001_init.sql and §9 of the build spec.
+   ========================================================================= */
+const SUPABASE_URL = "REPLACE_WITH_SUPABASE_PROJECT_URL";
+const SUPABASE_ANON_KEY = "REPLACE_WITH_SUPABASE_ANON_KEY";
+
+// Optional fallback coordinates for the weather widget if the device
+// declines/lacks geolocation. Leave as-is to just hide the widget.
+const FALLBACK_LAT = null;
+const FALLBACK_LON = null;
+
+const RELOAD_HOUR_LOCAL = 3; // daily hygiene reload, 3am local time
+
+/* =========================================================================
+   Palette — dataviz-skill validated categorical set (adjacent-pair
+   CVD-safe, both modes). Fixed order; never cycle/regenerate hues.
+   ========================================================================= */
+const PALETTE = [
+  { name:"blue",    light:"#2a78d6", dark:"#3987e5" },
+  { name:"orange",  light:"#eb6834", dark:"#d95926" },
+  { name:"aqua",    light:"#1baf7a", dark:"#199e70" },
+  { name:"yellow",  light:"#eda100", dark:"#c98500" },
+  { name:"magenta", light:"#e87ba4", dark:"#d55181" },
+  { name:"green",   light:"#008300", dark:"#008300" },
+  { name:"violet",  light:"#4a3aa7", dark:"#9085e9" },
+  { name:"red",     light:"#e34948", dark:"#e66767" },
+];
+const LIST_COLORS = PALETTE.map(p=>p.light);
+
+function isDark(){ return document.documentElement.getAttribute('data-theme') === 'dark'; }
+function colorFor(hex){
+  // hex stored is always the *light* value; resolve to the dark twin when in dark mode.
+  const entry = PALETTE.find(p=>p.light.toLowerCase()===String(hex).toLowerCase());
+  if(!entry) return hex;
+  return isDark() ? entry.dark : entry.light;
+}
+
+/* =========================================================================
+   Supabase client
+   ========================================================================= */
+const sb = (SUPABASE_URL.startsWith("http"))
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+if(!sb){
+  console.warn("Supabase is not configured yet — fill in SUPABASE_URL / SUPABASE_ANON_KEY at the top of index.html.");
+}
+
+/* =========================================================================
+   State
+   ========================================================================= */
+const state = {
+  view: 'calendar',
+  orientation: 'portrait',
+  members: [],
+  events: [],
+  chores: [],
+  completions: [], // {chore_id, completed_date}
+  lists: [],
+  listItems: {}, // list_id -> [items]
+  activeListId: null,
+  settings: { idle_timeout_minutes:10, dark_mode_override:'auto', countdown_label:null, countdown_date:null },
+  icsStatus: [],
+  photos: [],
+  activeFilter: new Set(), // empty set = show all
+  calMode: 'week',
+  weekStart: startOfWeek(new Date()),
+  dayDate: new Date(),
+  monthDate: new Date(),
+};
+
+function el(id){ return document.getElementById(id); }
+function pad2(n){ return String(n).padStart(2,'0'); }
+function localDateStr(d){ d = d||new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+function startOfWeek(d){ const c=new Date(d); c.setHours(0,0,0,0); c.setDate(c.getDate()-c.getDay()); return c; }
+function addDays(d,n){ const c=new Date(d); c.setDate(c.getDate()+n); return c; }
+function sameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+function fmtTime(d){ return d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* =========================================================================
+   Orientation
+   ========================================================================= */
+function applyOrientation(){
+  const mq = window.matchMedia('(orientation: portrait)');
+  state.orientation = mq.matches ? 'portrait' : 'landscape';
+  el('app').setAttribute('data-orientation', state.orientation);
+  renderCalendarView();
+}
+window.matchMedia('(orientation: portrait)').addEventListener('change', applyOrientation);
+window.addEventListener('resize', applyOrientation);
+
+/* =========================================================================
+   Navigation
+   ========================================================================= */
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> setView(btn.dataset.view));
+});
+function setView(view){
+  state.view = view;
+  document.querySelectorAll('.view').forEach(v=> v.hidden = (v.id !== 'view-'+view));
+  document.querySelectorAll('.nav-btn').forEach(b=> b.classList.toggle('is-active', b.dataset.view===view));
+  el('family-filter').style.display = view==='calendar' ? '' : 'none';
+  if(view==='calendar') loadCalendarData();
+  if(view==='chores') loadChores();
+  if(view==='lists') loadLists();
+  if(view==='settings') loadSettingsScreen();
+}
+
+/* =========================================================================
+   Header: clock, date, weather
+   ========================================================================= */
+function tickClock(){
+  const now = new Date();
+  el('hdr-clock').textContent = fmtTime(now);
+  el('hdr-dow').textContent = now.toLocaleDateString(undefined,{weekday:'long'});
+  el('hdr-date').textContent = now.toLocaleDateString(undefined,{month:'long', day:'numeric'});
+  if(state.orientation) applyDarkModeSchedule(now);
+  if(now.getHours()===RELOAD_HOUR_LOCAL && now.getMinutes()===0 && now.getSeconds()<3){
+    location.reload();
+  }
+  renderScreensaverClock(now);
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+const WMOICONS = {
+  0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌦️',
+  61:'🌧️',63:'🌧️',65:'🌧️',71:'🌨️',73:'🌨️',75:'🌨️',80:'🌦️',81:'🌧️',82:'⛈️',
+  95:'⛈️',96:'⛈️',99:'⛈️'
+};
+async function loadWeather(){
+  try{
+    let lat = FALLBACK_LAT, lon = FALLBACK_LON;
+    const cached = localStorage.getItem('fc_geo');
+    if(cached){ const g = JSON.parse(cached); lat=g.lat; lon=g.lon; }
+    else if(navigator.geolocation){
+      await new Promise(res=>{
+        navigator.geolocation.getCurrentPosition(pos=>{
+          lat = pos.coords.latitude; lon = pos.coords.longitude;
+          localStorage.setItem('fc_geo', JSON.stringify({lat,lon}));
+          res();
+        }, ()=>res(), { timeout:5000 });
+      });
+    }
+    if(lat==null || lon==null) return;
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=celsius`);
+    const data = await res.json();
+    const code = data.current.weather_code;
+    const temp = Math.round(data.current.temperature_2m);
+    el('hdr-weather').innerHTML = `<span class="wicon">${WMOICONS[code]||'🌡️'}</span><span class="wtemp">${temp}°</span>`;
+  }catch(e){ console.warn('weather failed', e); }
+}
+loadWeather();
+setInterval(loadWeather, 30*60*1000);
+
+function renderCountdown(){
+  const banner = el('countdown-banner');
+  if(!state.settings.countdown_date || !state.settings.countdown_label){
+    banner.classList.remove('is-active'); return;
+  }
+  const target = new Date(state.settings.countdown_date + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = Math.round((target-today)/86400000);
+  if(days < 0){ banner.classList.remove('is-active'); return; }
+  const label = days===0 ? `Today: ${state.settings.countdown_label}` :
+    days===1 ? `Tomorrow: ${state.settings.countdown_label}` :
+    `${days} days until ${state.settings.countdown_label}`;
+  banner.textContent = label;
+  banner.classList.add('is-active');
+}
+
+/* =========================================================================
+   Dark mode
+   ========================================================================= */
+function applyDarkModeSchedule(now){
+  const mode = state.settings.dark_mode_override || 'auto';
+  let dark;
+  if(mode==='on') dark = true;
+  else if(mode==='off') dark = false;
+  else { const h = now.getHours(); dark = (h>=20 || h<7); }
+  document.documentElement.setAttribute('data-theme', dark ? 'dark':'light');
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#1a1a19':'#fcfcfb');
+}
+
+/* =========================================================================
+   Family filter
+   ========================================================================= */
+function renderFamilyFilter(){
+  const wrap = el('family-filter');
+  wrap.innerHTML = '';
+  state.members.forEach(m=>{
+    const chip = document.createElement('button');
+    chip.className = 'filter-chip' + (state.activeFilter.size && !state.activeFilter.has(m.id) ? ' is-off':'');
+    chip.innerHTML = `<span class="avatar" style="background:${colorFor(m.color_hex)}">${escapeHtml((m.initials||m.name[0]||'?').slice(0,2))}</span><span class="fname">${escapeHtml(m.name)}</span>`;
+    chip.addEventListener('click', ()=>{
+      if(state.activeFilter.has(m.id)) state.activeFilter.delete(m.id);
+      else state.activeFilter.add(m.id);
+      renderFamilyFilter();
+      renderCalendarView();
+    });
+    wrap.appendChild(chip);
+  });
+}
+function memberById(id){ return state.members.find(m=>m.id===id); }
+function passesFilter(memberId){ return state.activeFilter.size===0 || state.activeFilter.has(memberId); }
+
+/* =========================================================================
+   Calendar
+   ========================================================================= */
+document.querySelectorAll('#cal-mode-toggle button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#cal-mode-toggle button').forEach(b=>b.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    state.calMode = btn.dataset.mode;
+    el('calendar-week').style.display = state.calMode==='week' ? '' : 'none';
+    el('calendar-day').style.display = state.calMode==='day' ? '' : 'none';
+    el('calendar-month').style.display = state.calMode==='month' ? '' : 'none';
+    loadCalendarData();
+  });
+});
+el('cal-prev').addEventListener('click', ()=> calNav(-1));
+el('cal-next').addEventListener('click', ()=> calNav(1));
+function calNav(dir){
+  if(state.calMode==='week') state.weekStart = addDays(state.weekStart, 7*dir);
+  else if(state.calMode==='day') state.dayDate = addDays(state.dayDate, dir);
+  else { const d = new Date(state.monthDate); d.setMonth(d.getMonth()+dir); state.monthDate = d; }
+  loadCalendarData();
+}
+
+async function loadCalendarData(){
+  if(!sb) return;
+  let rangeStart, rangeEnd;
+  if(state.calMode==='week'){ rangeStart = state.weekStart; rangeEnd = addDays(state.weekStart,7); }
+  else if(state.calMode==='day'){ rangeStart = new Date(state.dayDate); rangeStart.setHours(0,0,0,0); rangeEnd = addDays(rangeStart,1); }
+  else { rangeStart = new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1); rangeStart = startOfWeek(rangeStart); rangeEnd = addDays(rangeStart, 42); }
+
+  const { data, error } = await sb.from('events').select('*')
+    .gte('start_at', rangeStart.toISOString()).lt('start_at', rangeEnd.toISOString())
+    .order('start_at', { ascending:true });
+  if(error){ console.warn(error); return; }
+  state.events = data||[];
+  renderCalendarView();
+}
+
+function renderCalendarView(){
+  if(state.calMode==='week'){
+    el('cal-range-label').textContent = `${state.weekStart.toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${addDays(state.weekStart,6).toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
+    renderWeek();
+  } else if(state.calMode==='day'){
+    el('cal-range-label').textContent = state.dayDate.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+    renderDay();
+  } else {
+    el('cal-range-label').textContent = state.monthDate.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+    renderMonth();
+  }
+}
+
+function eventsOn(day){
+  return state.events.filter(e=> sameDay(new Date(e.start_at), day) && passesFilter(e.family_member_id));
+}
+function chipHtml(e){
+  const m = memberById(e.family_member_id);
+  const color = m ? colorFor(m.color_hex) : 'var(--ink-muted)';
+  const time = e.all_day ? 'All day' : fmtTime(new Date(e.start_at));
+  return `<button class="event-chip" style="background:${color}" data-id="${e.id}"><span class="etime">${time}</span><span class="etitle">${escapeHtml(e.title)}</span></button>`;
+}
+function bindChips(container){
+  container.querySelectorAll('.event-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=> openEventModal(state.events.find(e=>e.id===chip.dataset.id)));
+  });
+}
+
+function renderWeek(){
+  const container = el('calendar-week');
+  const isLandscape = state.orientation==='landscape';
+  container.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = isLandscape ? 'week-grid' : 'week-list';
+  for(let i=0;i<7;i++){
+    const day = addDays(state.weekStart, i);
+    const today = sameDay(day, new Date());
+    const dayEvents = eventsOn(day);
+    if(isLandscape){
+      const col = document.createElement('div');
+      col.className = 'day-col' + (today?' is-today':'');
+      col.innerHTML = `<div class="col-head"><div class="dnum">${day.getDate()}</div><div class="dname">${day.toLocaleDateString(undefined,{weekday:'short'})}</div></div>
+        <div class="col-events">${dayEvents.length? dayEvents.map(chipHtml).join('') : '<div class="empty-state" style="padding:1rem 0">No events</div>'}</div>`;
+      wrap.appendChild(col);
+    } else {
+      const row = document.createElement('div');
+      row.className = 'day-row' + (today?' is-today':'');
+      row.innerHTML = `<div class="day-label"><span class="dnum">${day.getDate()}</span><span class="dname">${day.toLocaleDateString(undefined,{weekday:'short'})}</span></div>
+        <div class="chips">${dayEvents.length? dayEvents.map(chipHtml).join('') : '<span class="empty">No events</span>'}</div>`;
+      wrap.appendChild(row);
+    }
+  }
+  container.appendChild(wrap);
+  bindChips(container);
+}
+
+function renderDay(){
+  const container = el('calendar-day');
+  const dayEvents = eventsOn(state.dayDate);
+  if(!dayEvents.length){ container.innerHTML = '<div class="empty-state">No events today</div>'; return; }
+  container.innerHTML = `<div class="day-view-list">${dayEvents.map(e=>{
+    const m = memberById(e.family_member_id);
+    const color = m ? colorFor(m.color_hex) : 'var(--ink-muted)';
+    const time = e.all_day ? 'All day' : `${fmtTime(new Date(e.start_at))}${e.end_at? ' – '+fmtTime(new Date(e.end_at)):''}`;
+    return `<div class="day-view-event" data-id="${e.id}"><div class="swatch" style="background:${color}"></div><div class="body"><div class="time">${time}</div><div class="title">${escapeHtml(e.title)}</div></div></div>`;
+  }).join('')}</div>`;
+  container.querySelectorAll('.day-view-event').forEach(row=>{
+    row.addEventListener('click', ()=> openEventModal(state.events.find(e=>e.id===row.dataset.id)));
+  });
+}
+
+function renderMonth(){
+  const container = el('calendar-month');
+  const gridStart = startOfWeek(new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1));
+  const dows = ['S','M','T','W','T','F','S'];
+  let html = '<div class="month-grid">' + dows.map(d=>`<div class="month-dow">${d}</div>`).join('');
+  for(let i=0;i<42;i++){
+    const day = addDays(gridStart, i);
+    const inMonth = day.getMonth()===state.monthDate.getMonth();
+    const today = sameDay(day, new Date());
+    const dayEvents = eventsOn(day);
+    const dots = dayEvents.slice(0,4).map(e=>{
+      const m = memberById(e.family_member_id);
+      return `<span style="background:${m?colorFor(m.color_hex):'var(--ink-muted)'}"></span>`;
+    }).join('');
+    html += `<div class="month-cell${today?' is-today':''}${inMonth?'':' is-other-month'}" data-date="${localDateStr(day)}">
+      <span class="mnum">${day.getDate()}</span><span class="mdots">${dots}</span></div>`;
+  }
+  html += '</div>';
+  container.innerHTML = html;
+  container.querySelectorAll('.month-cell').forEach(cell=>{
+    cell.addEventListener('click', ()=>{
+      const [y,mo,d] = cell.dataset.date.split('-').map(Number);
+      state.dayDate = new Date(y, mo-1, d);
+      document.querySelectorAll('#cal-mode-toggle button').forEach(b=>b.classList.toggle('is-active', b.dataset.mode==='day'));
+      state.calMode = 'day';
+      el('calendar-week').style.display='none'; el('calendar-month').style.display='none'; el('calendar-day').style.display='';
+      loadCalendarData();
+    });
+  });
+}
+
+function openEventModal(e){
+  if(!e) return;
+  el('ev-title').textContent = e.title;
+  el('ev-time').textContent = e.all_day ? 'All day' :
+    `${new Date(e.start_at).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})} · ${fmtTime(new Date(e.start_at))}${e.end_at? ' – '+fmtTime(new Date(e.end_at)):''}`;
+  el('ev-loc').textContent = e.location || '';
+  el('modal-event').classList.add('is-open');
+}
+el('ev-close').addEventListener('click', ()=> el('modal-event').classList.remove('is-open'));
+
+/* =========================================================================
+   Chores
+   ========================================================================= */
+async function loadChores(){
+  if(!sb) return;
+  const [{data:chores}, {data:completions}] = await Promise.all([
+    sb.from('chores').select('*').order('sort_order',{ascending:true}),
+    sb.from('chore_completions').select('*'),
+  ]);
+  state.chores = chores||[];
+  state.completions = completions||[];
+  renderChores();
+}
+function isChoreDone(chore){
+  const rows = state.completions.filter(c=>c.chore_id===chore.id);
+  if(chore.recurrence==='none') return rows.length>0;
+  if(chore.recurrence==='daily') return rows.some(r=>r.completed_date===localDateStr());
+  const weekStart = localDateStr(startOfWeek(new Date()));
+  return rows.some(r=>r.completed_date>=weekStart);
+}
+function renderChores(){
+  const container = el('chores-list');
+  if(!state.members.length){ container.innerHTML = '<div class="empty-state">Add a family member in Settings to start assigning chores.</div>'; return; }
+  container.innerHTML = '';
+  state.members.forEach(m=>{
+    const mine = state.chores.filter(c=>c.assignee_id===m.id);
+    const section = document.createElement('div');
+    section.className = 'chore-section';
+    section.innerHTML = `<div class="chore-section-head" style="background:color-mix(in srgb, ${colorFor(m.color_hex)} 15%, var(--surface))">
+        <span class="avatar" style="background:${colorFor(m.color_hex)}">${escapeHtml((m.initials||m.name[0]||'?').slice(0,2))}</span>
+        <h2>${escapeHtml(m.name)}</h2>
+      </div>
+      <ul class="chore-items" data-member="${m.id}">
+        ${mine.map(c=>choreRowHtml(c)).join('') || '<div class="empty-state" style="padding:1rem">No chores</div>'}
+      </ul>`;
+    container.appendChild(section);
+    const listEl = section.querySelector('.chore-items');
+    if(mine.length && window.Sortable){
+      Sortable.create(listEl, { handle:'.drag-handle', animation:150, onEnd: onChoreReorder });
+    }
+  });
+  container.querySelectorAll('.checkbox').forEach(cb=> cb.addEventListener('click', ()=> toggleChore(cb.dataset.id)));
+  container.querySelectorAll('.chore-row').forEach(row=> row.addEventListener('click', (ev)=>{
+    if(ev.target.closest('.checkbox') || ev.target.closest('.drag-handle')) return;
+    openChoreModal(state.chores.find(c=>c.id===row.dataset.id));
+  }));
+}
+function choreRowHtml(c){
+  const done = isChoreDone(c);
+  return `<li class="chore-row${done?' is-done':''}" data-id="${c.id}">
+    <span class="drag-handle">⋮⋮</span>
+    <span class="checkbox${done?' is-checked':''}" data-id="${c.id}">${done?'✓':''}</span>
+    <span class="ctitle">${escapeHtml(c.title)}</span>
+    ${c.recurrence!=='none' ? `<span class="chip-recurrence">${c.recurrence}</span>` : ''}
+  </li>`;
+}
+async function toggleChore(id){
+  const chore = state.chores.find(c=>c.id===id);
+  if(!chore) return;
+  const done = isChoreDone(chore);
+  if(done){
+    let q = sb.from('chore_completions').delete().eq('chore_id', id);
+    if(chore.recurrence==='daily') q = q.eq('completed_date', localDateStr());
+    else if(chore.recurrence==='weekly') q = q.gte('completed_date', localDateStr(startOfWeek(new Date())));
+    await q;
+  } else {
+    await sb.from('chore_completions').insert({ chore_id:id, completed_date: localDateStr() });
+  }
+  loadChores();
+}
+async function onChoreReorder(evt){
+  const memberId = evt.target.dataset.member;
+  const ids = Array.from(evt.target.querySelectorAll('.chore-row')).map(r=>r.dataset.id);
+  await Promise.all(ids.map((id,idx)=> sb.from('chores').update({ sort_order: idx }).eq('id', id)));
+  state.chores.forEach(c=>{ const idx = ids.indexOf(c.id); if(idx>-1) c.sort_order = idx; });
+}
+
+let editingChoreId = null;
+function openChoreModal(chore){
+  editingChoreId = chore ? chore.id : null;
+  el('chore-modal-title').textContent = chore ? 'Edit chore' : 'Add chore';
+  el('chore-title-input').value = chore ? chore.title : '';
+  el('chore-delete-btn').style.display = chore ? '' : 'none';
+  const row = el('chore-assignee-row'); row.innerHTML='';
+  state.members.forEach(m=>{
+    const b = document.createElement('button');
+    b.className = 'avatar-pick' + ((chore? chore.assignee_id===m.id : false) ? ' is-selected':'');
+    b.dataset.id = m.id;
+    b.innerHTML = `<span class="avatar" style="background:${colorFor(m.color_hex)}">${escapeHtml((m.initials||m.name[0]||'?').slice(0,2))}</span>`;
+    b.addEventListener('click', ()=>{ row.querySelectorAll('.avatar-pick').forEach(x=>x.classList.remove('is-selected')); b.classList.add('is-selected'); });
+    row.appendChild(b);
+  });
+  document.querySelectorAll('#chore-recurrence-row button').forEach(b=> b.classList.toggle('is-selected', b.dataset.val === (chore?chore.recurrence:'none')));
+  el('modal-chore').classList.add('is-open');
+}
+el('fab-add-chore').addEventListener('click', ()=> openChoreModal(null));
+document.querySelectorAll('#chore-recurrence-row button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#chore-recurrence-row button').forEach(b=>b.classList.remove('is-selected'));
+    btn.classList.add('is-selected');
+  });
+});
+el('chore-cancel-btn').addEventListener('click', ()=> el('modal-chore').classList.remove('is-open'));
+el('chore-save-btn').addEventListener('click', async ()=>{
+  const title = el('chore-title-input').value.trim();
+  if(!title) return;
+  const assignee = el('chore-assignee-row').querySelector('.is-selected');
+  const recurrence = el('chore-recurrence-row').querySelector('.is-selected').dataset.val;
+  const payload = { title, assignee_id: assignee?assignee.dataset.id:null, recurrence };
+  if(editingChoreId) await sb.from('chores').update(payload).eq('id', editingChoreId);
+  else await sb.from('chores').insert({ ...payload, sort_order: state.chores.length });
+  el('modal-chore').classList.remove('is-open');
+  loadChores();
+});
+el('chore-delete-btn').addEventListener('click', ()=>{
+  confirmDialog('Delete chore?', 'This removes it and its completion history.', async ()=>{
+    await sb.from('chores').delete().eq('id', editingChoreId);
+    el('modal-chore').classList.remove('is-open');
+    loadChores();
+  });
+});
+
+/* =========================================================================
+   Lists
+   ========================================================================= */
+async function loadLists(){
+  if(!sb) return;
+  const { data } = await sb.from('lists').select('*').order('sort_order',{ascending:true});
+  state.lists = data||[];
+  if(state.activeListId && state.lists.some(l=>l.id===state.activeListId)) openList(state.activeListId);
+  else renderListsGrid();
+}
+async function fetchListCounts(){
+  const counts = {};
+  for(const l of state.lists){
+    const { count } = await sb.from('list_items').select('*',{count:'exact',head:true}).eq('list_id', l.id);
+    counts[l.id] = count||0;
+  }
+  return counts;
+}
+async function renderListsGrid(){
+  el('lists-overview').style.display = '';
+  el('list-detail').classList.remove('is-open');
+  state.activeListId = null;
+  const grid = el('lists-grid');
+  grid.innerHTML = '';
+  const counts = await fetchListCounts();
+  state.lists.forEach(l=>{
+    const tile = document.createElement('div');
+    tile.className = 'list-tile';
+    tile.style.borderTopColor = colorFor(l.color_hex);
+    tile.innerHTML = `<h3>${escapeHtml(l.name)}</h3><span class="count">${counts[l.id]||0} item${counts[l.id]===1?'':'s'}</span>`;
+    tile.addEventListener('click', ()=> openList(l.id));
+    grid.appendChild(tile);
+  });
+  const addTile = document.createElement('button');
+  addTile.className = 'list-tile add-list-tile';
+  addTile.textContent = '+';
+  addTile.addEventListener('click', openListModal);
+  grid.appendChild(addTile);
+}
+async function openList(id){
+  state.activeListId = id;
+  const list = state.lists.find(l=>l.id===id);
+  if(!list) return renderListsGrid();
+  el('lists-overview').style.display = 'none';
+  el('list-detail').classList.add('is-open');
+  el('list-detail-title').textContent = list.name;
+  const { data } = await sb.from('list_items').select('*').eq('list_id', id).order('sort_order',{ascending:true});
+  state.listItems[id] = data||[];
+  renderListItems();
+}
+function renderListItems(){
+  const items = state.listItems[state.activeListId]||[];
+  const container = el('list-items');
+  container.innerHTML = items.length ? items.map(i=>`
+    <div class="list-item-row${i.done?' is-done':''}" data-id="${i.id}">
+      <span class="checkbox${i.done?' is-checked':''}" data-id="${i.id}">${i.done?'✓':''}</span>
+      <span class="itext">${escapeHtml(i.text)}</span>
+      <button class="item-delete" data-id="${i.id}">✕</button>
+    </div>`).join('') : '<div class="empty-state">No items yet</div>';
+  container.querySelectorAll('.checkbox').forEach(cb=> cb.addEventListener('click', ()=> toggleListItem(cb.dataset.id)));
+  container.querySelectorAll('.item-delete').forEach(b=> b.addEventListener('click', ()=> deleteListItem(b.dataset.id)));
+  if(window.Sortable) Sortable.create(container, { animation:150, onEnd: onListItemReorder });
+}
+async function toggleListItem(id){
+  const list = state.listItems[state.activeListId];
+  const item = list.find(i=>i.id===id);
+  await sb.from('list_items').update({ done: !item.done }).eq('id', id);
+  openList(state.activeListId);
+}
+async function deleteListItem(id){
+  await sb.from('list_items').delete().eq('id', id);
+  openList(state.activeListId);
+}
+async function onListItemReorder(evt){
+  const ids = Array.from(evt.target.querySelectorAll('.list-item-row')).map(r=>r.dataset.id);
+  await Promise.all(ids.map((id,idx)=> sb.from('list_items').update({ sort_order: idx }).eq('id', id)));
+}
+el('list-back').addEventListener('click', renderListsGrid);
+el('add-item-btn').addEventListener('click', addListItem);
+el('new-item-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addListItem(); });
+async function addListItem(){
+  const input = el('new-item-input');
+  const text = input.value.trim();
+  if(!text || !state.activeListId) return;
+  const items = state.listItems[state.activeListId]||[];
+  await sb.from('list_items').insert({ list_id: state.activeListId, text, sort_order: items.length });
+  input.value = '';
+  openList(state.activeListId);
+}
+el('clear-completed').addEventListener('click', async ()=>{
+  if(!state.activeListId) return;
+  await sb.from('list_items').delete().eq('list_id', state.activeListId).eq('done', true);
+  openList(state.activeListId);
+});
+el('list-delete-btn').addEventListener('click', ()=>{
+  if(!state.activeListId) return;
+  confirmDialog('Delete this list?', 'All items in it will be deleted too.', async ()=>{
+    await sb.from('lists').delete().eq('id', state.activeListId);
+    loadLists();
+  });
+});
+el('fab-add-list').addEventListener('click', openListModal);
+function openListModal(){
+  el('list-name-input').value = '';
+  const row = el('list-color-row'); row.innerHTML='';
+  LIST_COLORS.forEach((c,idx)=>{
+    const b = document.createElement('button');
+    b.className = 'swatch-btn' + (idx===0?' is-selected':'');
+    b.style.background = c; b.dataset.hex = c;
+    b.addEventListener('click', ()=>{ row.querySelectorAll('.swatch-btn').forEach(x=>x.classList.remove('is-selected')); b.classList.add('is-selected'); });
+    row.appendChild(b);
+  });
+  el('modal-list').classList.add('is-open');
+}
+el('list-cancel-btn').addEventListener('click', ()=> el('modal-list').classList.remove('is-open'));
+el('list-save-btn').addEventListener('click', async ()=>{
+  const name = el('list-name-input').value.trim();
+  if(!name) return;
+  const color = el('list-color-row').querySelector('.is-selected').dataset.hex;
+  await sb.from('lists').insert({ name, color_hex: color, sort_order: state.lists.length });
+  el('modal-list').classList.remove('is-open');
+  loadLists();
+});
+
+/* =========================================================================
+   Settings
+   ========================================================================= */
+async function loadSettingsScreen(){
+  if(!sb) return;
+  renderMembersSettings();
+  renderIcsSettings();
+  renderPhotoSettings();
+  el('idle-timeout-input').value = state.settings.idle_timeout_minutes || 10;
+  document.querySelectorAll('#darkmode-toggle button').forEach(b=> b.classList.toggle('is-selected', b.dataset.val === (state.settings.dark_mode_override||'auto')));
+  el('countdown-label-input').value = state.settings.countdown_label || '';
+  el('countdown-date-input').value = state.settings.countdown_date || '';
+  const { data } = await sb.from('ics_sources_status').select('*');
+  state.icsStatus = data||[];
+  renderIcsSettings();
+}
+function renderMembersSettings(){
+  const wrap = el('settings-members'); wrap.innerHTML='';
+  state.members.forEach(m=>{
+    const row = document.createElement('div');
+    row.className = 'settings-row';
+    row.innerHTML = `<span class="avatar" style="background:${colorFor(m.color_hex)}">${escapeHtml((m.initials||m.name[0]||'?').slice(0,2))}</span>
+      <span class="srlabel"><span class="srname">${escapeHtml(m.name)}</span></span>
+      <button class="btn small" data-id="${m.id}">Edit</button>`;
+    row.querySelector('button').addEventListener('click', ()=> openMemberModal(m));
+    wrap.appendChild(row);
+  });
+}
+function renderIcsSettings(){
+  const wrap = el('settings-ics'); wrap.innerHTML='';
+  state.members.forEach(m=>{
+    const src = state.icsStatus.find(s=>s.family_member_id===m.id);
+    const statusColor = !src ? 'var(--ink-muted)' : src.last_status==='ok' ? 'var(--good)' : src.last_status==='pending' ? 'var(--warning)' : 'var(--critical)';
+    const row = document.createElement('div');
+    row.className = 'settings-row';
+    row.innerHTML = `<span class="avatar" style="background:${colorFor(m.color_hex)}">${escapeHtml((m.initials||m.name[0]||'?').slice(0,2))}</span>
+      <span class="srlabel"><span class="srname">${escapeHtml(m.name)}</span>
+        <span class="srsub">${src ? (src.last_polled_at ? 'Last synced '+new Date(src.last_polled_at).toLocaleString() : 'Waiting for first sync') : 'Not connected'}</span></span>
+      <span class="status-dot" style="background:${statusColor}"></span>
+      <button class="btn small" data-id="${m.id}">${src?'Update':'Connect'}</button>`;
+    row.querySelector('button').addEventListener('click', ()=> promptIcsUrl(m));
+    wrap.appendChild(row);
+  });
+}
+function promptIcsUrl(m){
+  const url = prompt(`Paste ${m.name}'s Secret address in iCal format:`);
+  if(url===null) return;
+  if(url.trim()===''){ sb.rpc('delete_ics_source', { p_family_member_id: m.id }).then(loadSettingsScreen); return; }
+  sb.rpc('upsert_ics_source', { p_family_member_id: m.id, p_ics_url: url.trim() }).then(loadSettingsScreen);
+}
+function renderPhotoSettings(){
+  const grid = el('photo-grid'); grid.innerHTML='';
+  state.photos.forEach(p=>{
+    const { data } = sb.storage.from('screensaver-photos').getPublicUrl(p.storage_path);
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb';
+    thumb.innerHTML = `<img src="${data.publicUrl}" loading="lazy"><button class="rm" data-id="${p.id}" data-path="${p.storage_path}">✕</button>`;
+    thumb.querySelector('.rm').addEventListener('click', async (e)=>{
+      const btn = e.currentTarget;
+      await sb.storage.from('screensaver-photos').remove([btn.dataset.path]);
+      await sb.from('screensaver_photos').delete().eq('id', btn.dataset.id);
+      loadPhotos();
+    });
+    grid.appendChild(thumb);
+  });
+  const upload = document.createElement('button');
+  upload.className = 'upload-tile';
+  upload.textContent = '+';
+  upload.addEventListener('click', ()=> el('photo-upload-input').click());
+  grid.appendChild(upload);
+}
+el('photo-upload-input').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files||[]);
+  for(const file of files){
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name}`;
+    const { error } = await sb.storage.from('screensaver-photos').upload(path, file);
+    if(!error) await sb.from('screensaver_photos').insert({ storage_path: path, sort_order: state.photos.length });
+  }
+  e.target.value = '';
+  loadPhotos();
+});
+async function loadPhotos(){
+  const { data } = await sb.from('screensaver_photos').select('*').order('sort_order',{ascending:true});
+  state.photos = data||[];
+  if(state.view==='settings') renderPhotoSettings();
+}
+
+document.querySelectorAll('#darkmode-toggle button').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    document.querySelectorAll('#darkmode-toggle button').forEach(b=>b.classList.remove('is-selected'));
+    btn.classList.add('is-selected');
+    await saveSettings({ dark_mode_override: btn.dataset.val });
+    applyDarkModeSchedule(new Date());
+  });
+});
+el('idle-timeout-input').addEventListener('change', e=> saveSettings({ idle_timeout_minutes: Math.max(1, parseInt(e.target.value,10)||10) }));
+el('save-countdown-btn').addEventListener('click', ()=> saveSettings({
+  countdown_label: el('countdown-label-input').value.trim() || null,
+  countdown_date: el('countdown-date-input').value.trim() || null,
+}).then(renderCountdown));
+el('clear-countdown-btn').addEventListener('click', ()=>{
+  el('countdown-label-input').value=''; el('countdown-date-input').value='';
+  saveSettings({ countdown_label:null, countdown_date:null }).then(renderCountdown);
+});
+async function saveSettings(patch){
+  Object.assign(state.settings, patch);
+  await sb.from('app_settings').update(patch).eq('id', 1);
+  return state.settings;
+}
+
+let editingMemberId = null;
+function openMemberModal(m){
+  editingMemberId = m ? m.id : null;
+  el('member-modal-title').textContent = m ? 'Edit family member' : 'Add family member';
+  el('member-name-input').value = m ? m.name : '';
+  el('member-initials-input').value = m ? (m.initials||'') : '';
+  el('member-delete-btn').style.display = m ? '' : 'none';
+  const row = el('member-color-row'); row.innerHTML='';
+  const usedColors = new Set(state.members.filter(x=>!m || x.id!==m.id).map(x=>x.color_hex));
+  PALETTE.forEach((p,idx)=>{
+    const b = document.createElement('button');
+    const selected = m ? m.color_hex===p.light : idx===0;
+    b.className = 'swatch-btn' + (selected?' is-selected':'');
+    b.style.background = p.light; b.dataset.hex = p.light;
+    if(usedColors.has(p.light)) b.style.opacity = '.35';
+    b.addEventListener('click', ()=>{ row.querySelectorAll('.swatch-btn').forEach(x=>x.classList.remove('is-selected')); b.classList.add('is-selected'); });
+    row.appendChild(b);
+  });
+  el('modal-member').classList.add('is-open');
+}
+el('add-member-btn').addEventListener('click', ()=> openMemberModal(null));
+el('member-cancel-btn').addEventListener('click', ()=> el('modal-member').classList.remove('is-open'));
+el('member-save-btn').addEventListener('click', async ()=>{
+  const name = el('member-name-input').value.trim();
+  if(!name) return;
+  const initials = el('member-initials-input').value.trim();
+  const color = el('member-color-row').querySelector('.is-selected').dataset.hex;
+  const payload = { name, initials: initials||name.slice(0,2).toUpperCase(), color_hex: color };
+  if(editingMemberId) await sb.from('family_members').update(payload).eq('id', editingMemberId);
+  else await sb.from('family_members').insert({ ...payload, sort_order: state.members.length });
+  el('modal-member').classList.remove('is-open');
+  loadMembers();
+});
+el('member-delete-btn').addEventListener('click', ()=>{
+  confirmDialog('Remove this family member?', 'Their chores stay but become unassigned. Events keep syncing only if you also remove their calendar link.', async ()=>{
+    await sb.from('family_members').delete().eq('id', editingMemberId);
+    el('modal-member').classList.remove('is-open');
+    loadMembers();
+  });
+});
+
+/* =========================================================================
+   Confirm dialog
+   ========================================================================= */
+let confirmAction = null;
+function confirmDialog(title, body, onOk){
+  el('confirm-title').textContent = title;
+  el('confirm-body').textContent = body;
+  confirmAction = onOk;
+  el('modal-confirm').classList.add('is-open');
+}
+el('confirm-cancel-btn').addEventListener('click', ()=> el('modal-confirm').classList.remove('is-open'));
+el('confirm-ok-btn').addEventListener('click', ()=>{
+  el('modal-confirm').classList.remove('is-open');
+  if(confirmAction) confirmAction();
+});
+document.querySelectorAll('.modal-overlay').forEach(ov=>{
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('is-open'); });
+});
+
+/* =========================================================================
+   Members (shared load, used by filter/chores/settings)
+   ========================================================================= */
+async function loadMembers(){
+  if(!sb) return;
+  const { data } = await sb.from('family_members').select('*').order('sort_order',{ascending:true});
+  state.members = data||[];
+  renderFamilyFilter();
+  if(state.view==='chores') renderChores();
+  if(state.view==='settings') renderMembersSettings();
+}
+async function loadSettingsRow(){
+  const { data } = await sb.from('app_settings').select('*').eq('id',1).maybeSingle();
+  if(data) state.settings = data;
+  renderCountdown();
+  applyDarkModeSchedule(new Date());
+}
+
+/* =========================================================================
+   Screensaver / idle
+   ========================================================================= */
+let idleTimer = null, ssIndex = 0, ssInterval = null;
+function resetIdleTimer(){
+  clearTimeout(idleTimer);
+  wakeScreensaver();
+  const minutes = state.settings.idle_timeout_minutes || 10;
+  idleTimer = setTimeout(startScreensaver, minutes*60*1000);
+}
+['pointerdown','touchstart','mousemove','keydown'].forEach(evt=> document.addEventListener(evt, resetIdleTimer, {passive:true}));
+
+function startScreensaver(){
+  const ss = el('screensaver');
+  ss.classList.add('is-active');
+  el('ss-empty').style.display = state.photos.length ? 'none' : 'flex';
+  ss.querySelectorAll('img').forEach(i=>i.remove());
+  if(!state.photos.length) return;
+  ssIndex = 0;
+  showScreensaverPhoto();
+  clearInterval(ssInterval);
+  ssInterval = setInterval(()=>{ ssIndex = (ssIndex+1) % state.photos.length; showScreensaverPhoto(); }, 20000);
+}
+function showScreensaverPhoto(){
+  const ss = el('screensaver');
+  const photo = state.photos[ssIndex];
+  if(!photo || !sb) return;
+  const { data } = sb.storage.from('screensaver-photos').getPublicUrl(photo.storage_path);
+  const img = document.createElement('img');
+  img.src = data.publicUrl;
+  img.addEventListener('load', ()=>{
+    ss.querySelectorAll('img').forEach(i=>i.remove());
+    ss.insertBefore(img, ss.firstChild);
+    requestAnimationFrame(()=> img.classList.add('is-shown'));
+  });
+}
+function wakeScreensaver(){
+  clearInterval(ssInterval);
+  el('screensaver').classList.remove('is-active');
+}
+function renderScreensaverClock(now){
+  el('ss-time').textContent = fmtTime(now);
+  el('ss-date').textContent = now.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+}
+
+/* =========================================================================
+   Connection recovery
+   ========================================================================= */
+function refreshCurrentView(){
+  if(state.view==='calendar') loadCalendarData();
+  else if(state.view==='chores') loadChores();
+  else if(state.view==='lists') loadLists();
+  else if(state.view==='settings') loadSettingsScreen();
+}
+window.addEventListener('online', refreshCurrentView);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshCurrentView(); });
+
+let realtimeDebounce = null;
+function subscribeRealtime(){
+  if(!sb) return;
+  const channel = sb.channel('public-changes');
+  ['family_members','events','chores','chore_completions','lists','list_items','app_settings'].forEach(table=>{
+    channel.on('postgres_changes', { event:'*', schema:'public', table }, ()=>{
+      clearTimeout(realtimeDebounce);
+      realtimeDebounce = setTimeout(()=>{
+        if(table==='family_members') loadMembers();
+        else if(table==='app_settings') loadSettingsRow();
+        else refreshCurrentView();
+      }, 400);
+    });
+  });
+  channel.subscribe();
+}
+
+/* =========================================================================
+   Boot
+   ========================================================================= */
+async function boot(){
+  applyOrientation();
+  if(sb){
+    await loadMembers();
+    await loadSettingsRow();
+    await loadPhotos();
+    subscribeRealtime();
+  }
+  setView('calendar');
+  resetIdleTimer();
+}
+boot();
+
+})();
+</script>
+</body>
+</html>
