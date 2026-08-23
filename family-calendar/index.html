@@ -284,18 +284,28 @@
   /* Calendar shell: fills the view, no page-level scroll except where noted.
      Toolbar now lives in the header, so this view is just the grid. */
   #view-calendar.view:not([hidden]){ display:flex; flex-direction:column; overflow:hidden; }
-  #calendar-week, #calendar-month{ flex:1; min-height:0; }
+  /* position:relative + overflow:hidden so the outgoing/incoming grid can
+     be stacked and slid during prev/next paging — see slideReplace(). */
+  #calendar-week{ flex:1; min-height:0; position:relative; overflow:hidden; }
 
   /* Calendar: week — a single full-width row, 7 columns starting from
      today (Today, Tomorrow, then weekday names), hairline dividers only,
      no card boxes/shadows — same shape both orientations */
-  .week-grid{ display:grid; grid-template-columns:repeat(7,1fr); height:100%; border-top:1px solid var(--gridline); }
+  .week-grid{
+    display:grid; grid-template-columns:repeat(7,1fr); border-top:1px solid var(--gridline);
+    position:absolute; inset:0; width:100%; height:100%; background:var(--bg);
+  }
   .day-col{
     border-right:1px solid var(--gridline); padding:.8rem .7rem; display:flex; flex-direction:column; gap:.5rem;
-    min-width:0; min-height:0;
+    min-width:0; min-height:0; transition: background .15s ease;
   }
   .day-col:last-child{ border-right:none; }
-  .day-col.is-drop-target{ background:color-mix(in srgb, var(--accent) 10%, transparent); }
+  .day-col.is-drop-target{ background:color-mix(in srgb, var(--accent) 14%, transparent); }
+  .day-col.is-drop-flash{ animation: dropFlash .5s ease; }
+  @keyframes dropFlash{
+    0%{ background:color-mix(in srgb, var(--accent) 30%, transparent); }
+    100%{ background:transparent; }
+  }
   .day-col .col-head{
     display:flex; flex-direction:column; gap:.1rem; flex-shrink:0;
     padding-bottom:.6rem; margin-bottom:.1rem; border-bottom:1px solid var(--gridline);
@@ -309,18 +319,34 @@
   .event-row{
     display:flex; flex-direction:column; align-items:flex-start; gap:.05rem; width:100%; text-align:left;
     background:none; border:none; border-left:3px solid var(--accent); border-radius:0; padding:.1rem 0 .1rem .55rem;
-    cursor:pointer; font-family:inherit;
+    cursor:pointer; font-family:inherit; transition: opacity .15s ease;
   }
   .event-row .ername{ font-size:.8rem; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
   .event-row .ertime{ font-size:.7rem; color:var(--ink-secondary); font-weight:600; }
   .event-row[data-synced="0"]{ touch-action:none; }
-  .event-row.is-dragging{ opacity:.4; }
+  .event-row.is-dragging{ opacity:.3; }
+
+  /* Floating clone that tracks the pointer while dragging an event card
+     — see makeEventDraggable(). Not a real event-row so it can carry its
+     own transform/shadow without fighting the grid's own layout. */
+  .event-ghost{
+    position:fixed; left:0; top:0; z-index:200; pointer-events:none;
+    display:flex; flex-direction:column; gap:.05rem;
+    background:var(--surface); border-left:3px solid var(--accent); border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+    padding:.35rem .7rem .35rem .55rem; box-shadow:0 14px 30px rgba(0,0,0,.32), 0 3px 10px rgba(0,0,0,.22);
+    will-change:transform, opacity;
+  }
+  .event-ghost .ername{ font-size:.8rem; font-weight:700; color:var(--ink); white-space:nowrap; }
+  .event-ghost .ertime{ font-size:.7rem; color:var(--ink-secondary); font-weight:600; white-space:nowrap; }
 
   /* Calendar: month — plain thin-line grid, no card, no side panel.
-     Each cell carries its own compact colored event pills. */
+     Each cell carries its own compact colored event pills. Absolutely
+     positioned within .month-grid-wrap so the outgoing/incoming month
+     can be stacked and slid during prev/next paging — see slideReplace(). */
   .month-grid{
     display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:auto repeat(6,1fr);
-    border-top:1px solid var(--gridline); border-left:1px solid var(--gridline); height:100%;
+    border-top:1px solid var(--gridline); border-left:1px solid var(--gridline);
+    position:absolute; inset:0; width:100%; height:100%; background:var(--bg);
   }
   .month-dow{ text-align:center; font-size:.68rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding:.4rem 0; }
   .month-cell{
@@ -341,7 +367,7 @@
      header instead — there's no width to spare for a sidebar there. */
   .month-shell{ height:100%; }
   .month-side{ display:none; }
-  .month-grid-wrap{ width:100%; height:100%; }
+  .month-grid-wrap{ width:100%; height:100%; position:relative; overflow:hidden; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #view-calendar{ padding:0; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #calendar-month-shell{ display:flex; }
   #app[data-orientation="landscape"][data-cal-mode="month"] .month-side{
@@ -578,9 +604,7 @@
             </div>
           </div>
         </aside>
-        <div class="month-grid-wrap">
-          <div id="calendar-month" class="month-grid"></div>
-        </div>
+        <div class="month-grid-wrap" id="calendar-month-wrap"></div>
       </div>
       <button class="fab" id="fab-add-event" aria-label="Add event">+</button>
     </section>
@@ -1445,25 +1469,27 @@ el('cal-next').addEventListener('click', ()=> calNav(1));
 function calNav(dir){
   if(state.calMode==='week') state.weekAnchor = addDays(state.weekAnchor, 7*dir);
   else { const d = new Date(state.monthDate); d.setMonth(d.getMonth()+dir); state.monthDate = d; }
-  loadCalendarData();
+  // Next always slides left, prev always slides right — dir *is* the
+  // slide direction here, no need to infer it from a date comparison.
+  loadCalendarData(dir);
 }
 
-async function loadCalendarData(){
+async function loadCalendarData(direction){
   let rangeStart, rangeEnd;
   if(state.calMode==='week'){ rangeStart = state.weekAnchor; rangeEnd = addDays(state.weekAnchor,7); }
   else { rangeStart = startOfWeek(new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1)); rangeEnd = addDays(rangeStart, 42); }
 
   state.events = await db.listEvents(rangeStart.toISOString(), rangeEnd.toISOString());
-  renderCalendarView();
+  renderCalendarView(direction);
 }
 
-function renderCalendarView(){
+function renderCalendarView(direction){
   if(state.calMode==='week'){
     el('cal-range-label').textContent = `${state.weekAnchor.toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${addDays(state.weekAnchor,6).toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
-    renderWeek();
+    renderWeek(direction);
   } else {
     el('cal-range-label').textContent = state.monthDate.toLocaleDateString(undefined,{month:'long', year:'numeric'});
-    renderMonth();
+    renderMonth(direction);
   }
   updateTodayButton();
 }
@@ -1475,9 +1501,20 @@ function updateTodayButton(){
   el('cal-today-btn').hidden = onCurrent;
 }
 el('cal-today-btn').addEventListener('click', ()=>{
+  // Slide toward today the same way paging would: forward in time slides
+  // left, backward slides right.
+  const now = new Date();
+  let direction = 0;
+  if(state.calMode==='week'){
+    if(!sameDay(state.weekAnchor, now)) direction = now > state.weekAnchor ? 1 : -1;
+  } else {
+    const cur = new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1);
+    const target = new Date(now.getFullYear(), now.getMonth(), 1);
+    if(cur.getTime() !== target.getTime()) direction = target > cur ? 1 : -1;
+  }
   if(state.calMode==='week') state.weekAnchor = new Date();
   else state.monthDate = new Date();
-  loadCalendarData();
+  loadCalendarData(direction);
 });
 
 function eventsOn(day){
@@ -1500,19 +1537,53 @@ function bindEventRows(container){
 // to reschedule it there (keeps its time-of-day and duration). Synced
 // events (google_event_id set) aren't draggable — a sync would just
 // overwrite the move back to whatever Google says within 15 minutes.
+//
+// The card itself never moves — instead a floating .event-ghost clone
+// tracks the pointer (so the grid's own layout/scroll is never disturbed
+// mid-drag), lifting off with a little scale/tilt, then either settling
+// into the drop target with a landing flash, or springing back to its
+// origin if released somewhere invalid.
 function makeEventDraggable(gridEl){
   gridEl.addEventListener('pointerdown', (e)=>{
     const card = e.target.closest('.event-row');
     if(!card || card.dataset.synced==='1') return;
-    let moved = false;
+    let moved = false, ghost = null;
     const startX = e.clientX, startY = e.clientY;
+    const originRect = card.getBoundingClientRect();
+    const grabDX = startX - originRect.left, grabDY = startY - originRect.top;
     try{ card.setPointerCapture(e.pointerId); }catch(err){}
+
+    function place(x, y, scale, rotateDeg){
+      ghost.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale}) rotate(${rotateDeg}deg)`;
+    }
+    // Lifts the ghost off from the card's exact original spot straight to
+    // the pointer position that crossed the drag threshold — using this
+    // same event's coordinates (rather than the stale pointerdown ones)
+    // avoids a double-place race against the next onMove call.
+    function startDrag(ev){
+      moved = true;
+      card.classList.add('is-dragging');
+      ghost = document.createElement('div');
+      ghost.className = 'event-ghost';
+      ghost.style.width = originRect.width + 'px';
+      ghost.style.borderLeftColor = card.style.borderLeftColor || getComputedStyle(card).borderLeftColor;
+      ghost.innerHTML = `<span class="ername">${card.querySelector('.ername').textContent}</span><span class="ertime">${card.querySelector('.ertime').textContent}</span>`;
+      document.body.appendChild(ghost);
+      ghost.style.transition = 'none';
+      place(originRect.left, originRect.top, 1, 0);
+      void ghost.offsetWidth; // force layout so the transition below actually animates
+      requestAnimationFrame(()=>{
+        ghost.style.transition = 'transform .14s cubic-bezier(.2,.8,.3,1), box-shadow .14s ease';
+        place(ev.clientX - grabDX, ev.clientY - grabDY, 1.04, -2);
+      });
+    }
     function onMove(ev){
-      if(!moved && Math.hypot(ev.clientX-startX, ev.clientY-startY) > 8){
-        moved = true;
-        card.classList.add('is-dragging');
+      if(!moved){
+        if(Math.hypot(ev.clientX-startX, ev.clientY-startY) > 8) startDrag(ev);
+        return;
       }
-      if(!moved) return;
+      ghost.style.transition = '';
+      place(ev.clientX - grabDX, ev.clientY - grabDY, 1.04, -2);
       const under = document.elementFromPoint(ev.clientX, ev.clientY);
       const dayCol = under && under.closest('.day-col');
       gridEl.querySelectorAll('.day-col.is-drop-target').forEach(c=> c.classList.remove('is-drop-target'));
@@ -1521,10 +1592,29 @@ function makeEventDraggable(gridEl){
     function onUp(ev){
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      card.classList.remove('is-dragging');
       const dropTarget = gridEl.querySelector('.day-col.is-drop-target');
       gridEl.querySelectorAll('.day-col.is-drop-target').forEach(c=> c.classList.remove('is-drop-target'));
-      if(moved && dropTarget && dropTarget.dataset.date) moveEventToDate(card.dataset.id, dropTarget.dataset.date);
+      if(!moved) return;
+      card.classList.remove('is-dragging');
+      // Pointer capture makes the browser synthesize a 'click' on `card`
+      // right after this, wherever the pointer actually ended up — left
+      // unchecked that reopens the event modal on every drag, drop or
+      // cancel alike. Swallow just that one click.
+      card.addEventListener('click', ce=>{ ce.stopPropagation(); ce.preventDefault(); }, { capture:true, once:true });
+      if(dropTarget && dropTarget.dataset.date){
+        const targetRect = dropTarget.getBoundingClientRect();
+        ghost.style.transition = 'transform .2s cubic-bezier(.22,1,.36,1), opacity .18s ease .1s';
+        place(targetRect.left + 10, targetRect.top + 10, 1, 0);
+        ghost.style.opacity = '0';
+        dropTarget.classList.add('is-drop-flash');
+        setTimeout(()=> dropTarget.classList.remove('is-drop-flash'), 500);
+        setTimeout(()=> ghost && ghost.remove(), 300);
+        moveEventToDate(card.dataset.id, dropTarget.dataset.date);
+      } else {
+        ghost.style.transition = 'transform .28s cubic-bezier(.34,1.4,.4,1)';
+        place(originRect.left, originRect.top, 1, 0);
+        ghost.addEventListener('transitionend', ()=> ghost.remove(), {once:true});
+      }
     }
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -1546,9 +1636,39 @@ async function moveEventToDate(eventId, dateStr){
   loadCalendarData();
 }
 
-function renderWeek(){
+// Cross-fades/slides the old grid out and the new one in when `direction`
+// is given (1 = paging forward, so the old content exits left and the new
+// enters from the right; -1 = the reverse). With no direction (initial
+// load, filter changes, mode switch) it's a plain instant swap.
+function slideReplace(container, newEl, direction){
+  const old = container.firstElementChild;
+  if(!direction || !old){
+    container.innerHTML = '';
+    container.appendChild(newEl);
+    return;
+  }
+  const DUR = 260;
+  newEl.style.transition = 'none';
+  newEl.style.transform = `translateX(${direction>0 ? '100%' : '-100%'})`;
+  container.appendChild(newEl);
+  old.style.transition = 'none';
+  old.style.transform = 'translateX(0)';
+  void newEl.offsetWidth; // force layout so the transition below actually animates
+  requestAnimationFrame(()=>{
+    const ease = `transform ${DUR}ms cubic-bezier(.22,.9,.32,1)`;
+    newEl.style.transition = ease;
+    old.style.transition = ease;
+    newEl.style.transform = 'translateX(0)';
+    old.style.transform = `translateX(${direction>0 ? '-100%' : '100%'})`;
+  });
+  let done = false;
+  const cleanup = ()=>{ if(done) return; done = true; old.remove(); };
+  newEl.addEventListener('transitionend', cleanup, {once:true});
+  setTimeout(cleanup, DUR + 120); // safety net if transitionend never fires
+}
+
+function renderWeek(direction){
   const container = el('calendar-week');
-  container.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'week-grid';
   const today = new Date(), tomorrow = addDays(today,1);
@@ -1564,8 +1684,8 @@ function renderWeek(){
       <div class="col-events">${dayEvents.length? dayEvents.map(eventRowHtml).join('') : '<div class="empty-state" style="padding:.6rem 0;font-size:.85rem;">No events</div>'}</div>`;
     wrap.appendChild(col);
   }
-  container.appendChild(wrap);
-  bindEventRows(container);
+  slideReplace(container, wrap, direction);
+  bindEventRows(wrap);
   makeEventDraggable(wrap);
 }
 
@@ -1582,8 +1702,10 @@ function openDayAgendaModal(dateStr){
 }
 el('day-agenda-close').addEventListener('click', ()=> el('modal-day-agenda').classList.remove('is-open'));
 
-function renderMonth(){
-  const container = el('calendar-month');
+function renderMonth(direction){
+  const container = el('calendar-month-wrap');
+  const wrap = document.createElement('div');
+  wrap.className = 'month-grid';
   const gridStart = startOfWeek(new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1));
   const dows = ['S','M','T','W','T','F','S'];
   let html = dows.map(d=>`<div class="month-dow">${d}</div>`).join('');
@@ -1602,10 +1724,11 @@ function renderMonth(){
     html += `<div class="month-cell${today?' is-today':''}${inMonth?'':' is-other-month'}" data-date="${localDateStr(day)}">
       <span class="mnum">${day.getDate()}</span><div class="mpills">${pills}${more}</div></div>`;
   }
-  container.innerHTML = html;
-  container.querySelectorAll('.month-cell').forEach(cell=>{
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('.month-cell').forEach(cell=>{
     cell.addEventListener('click', ()=> openDayAgendaModal(cell.dataset.date));
   });
+  slideReplace(container, wrap, direction);
 }
 
 let viewingEventId = null;
