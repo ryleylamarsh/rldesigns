@@ -263,9 +263,9 @@
   }
   .day-col:last-child{ border-right:none; }
   .day-col.is-drop-target{ background:color-mix(in srgb, var(--accent) 10%, transparent); }
-  .day-col .col-head{ display:flex; flex-direction:column; gap:.05rem; flex-shrink:0; }
-  .day-col .col-head .dnum{ font-size:1.1rem; font-weight:800; line-height:1; }
-  .day-col .col-head .dname{ font-size:.72rem; color:var(--ink-muted); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
+  .day-col .col-head{ display:flex; flex-direction:column; gap:.1rem; flex-shrink:0; }
+  .day-col .col-head .dnum{ font-size:3rem; font-weight:800; line-height:1; }
+  .day-col .col-head .dname{ font-size:.78rem; color:var(--ink-muted); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
   .day-col.is-today .col-head .dname{ color:var(--accent); }
   .day-col .col-events{ display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; min-height:0; }
 
@@ -298,6 +298,38 @@
   .month-cell .mpills{ display:flex; flex-direction:column; gap:2px; width:100%; overflow:hidden; }
   .month-cell .mpill{ font-size:.6rem; font-weight:700; color:#fff; border-radius:4px; padding:1px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .month-cell .mmore{ font-size:.58rem; color:var(--ink-muted); font-weight:700; padding-left:5px; }
+
+  /* Calendar: month, landscape only — a left wallpaper sidebar (the same
+     night-sky/aurora/pine art as the header) carrying clock, date,
+     weather and wind, beside the month grid forced into a perfect
+     square. Portrait keeps the plain full-width grid under the normal
+     header instead — there's no width to spare for a sidebar there. */
+  .month-shell{ height:100%; }
+  .month-side{ display:none; }
+  .month-grid-wrap{ width:100%; height:100%; }
+  #app[data-orientation="landscape"][data-cal-mode="month"] #view-calendar{ padding:0; }
+  #app[data-orientation="landscape"][data-cal-mode="month"] #calendar-month-shell{ display:flex; }
+  #app[data-orientation="landscape"][data-cal-mode="month"] .month-side{
+    display:flex; flex-direction:column; position:relative; overflow:hidden; color:#fff;
+    flex:1 1 auto; min-width:14rem; padding:1.6rem 1.6rem 1.8rem;
+  }
+  #app[data-orientation="landscape"][data-cal-mode="month"] .month-grid-wrap{
+    flex:0 0 auto; height:100%; aspect-ratio:1/1; width:auto;
+  }
+  .month-side-content{ position:relative; z-index:1; display:flex; flex-direction:column; height:100%; }
+  .month-side-weather{ margin-top:auto; display:flex; flex-direction:column; gap:1rem; align-items:flex-start; }
+  .month-side .weather-strip{ border-left:none; padding-left:0; }
+  .month-side-wind{ display:flex; align-items:center; gap:.5rem; font-size:.85rem; font-weight:600; color:rgba(255,255,255,.75); }
+  .month-side-wind svg{ width:1.2rem; height:1.2rem; flex-shrink:0; }
+
+  /* Header shrinks to a slim toolbar strip in this mode — the sidebar
+     already shows clock/date/weather, so the full hero would be
+     redundant with the room the square grid needs. Scoped to the
+     Calendar view specifically — data-cal-mode persists in the background
+     while browsing other tabs, and shouldn't shrink their header too. */
+  #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] .hero-main{ display:none; }
+  #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] header#header{ height:auto; min-height:0; padding:.6rem 1.2rem; }
+  #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] .header-cal-toolbar{ margin-top:0; }
 
   .agenda-date-label{ font-weight:700; font-size:1.1rem; margin-bottom:.8rem; flex-shrink:0; }
   .agenda-list{ display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; flex:1; min-height:0; }
@@ -425,12 +457,13 @@
   /* misc */
   .empty-state{ color:var(--ink-muted); text-align:center; padding:3rem 1rem; font-size:1rem; }
 
-  /* Local sandbox / demo-mode badge — floats over the content area (#main),
-     bottom-left so it never competes with the header hero or the day-column
-     headers (top-right was tried first and clipped into Wed/Thu/Fri in
-     portrait's 7-up grid) or the FAB (bottom-right) */
+  /* Local sandbox / demo-mode badge — fixed top-center of the whole app,
+     above the header. Every other corner collides with something in at
+     least one view/orientation/cal-mode combo (day-column headers, the
+     FAB, the month sidebar's weather/wind readout); top-center is the one
+     spot every layout leaves clear (clock sits top-left, weather top-right). */
   #demo-badge{
-    position:absolute; bottom:.6rem; left:.6rem; z-index:6; background:var(--warning); color:#1a1a19;
+    position:fixed; top:.5rem; left:50%; transform:translateX(-50%); z-index:50; background:var(--warning); color:#1a1a19;
     font-weight:700; font-size:.65rem; letter-spacing:.02em; text-transform:uppercase; padding:.35rem .7rem;
     border-radius:999px; box-shadow:var(--shadow); display:none; cursor:default; opacity:.9;
   }
@@ -439,7 +472,7 @@
 </head>
 <body>
 
-<div id="app" data-orientation="portrait" data-view="calendar">
+<div id="app" data-orientation="portrait" data-view="calendar" data-cal-mode="week">
   <header id="header">
     <div class="hero-bg" aria-hidden="true">
       <div class="hero-stars"></div>
@@ -449,15 +482,15 @@
     <div class="hero-overlay" aria-hidden="true"></div>
     <div class="hero-main">
       <div class="hero-clock-block">
-        <span class="clock" id="hdr-clock">--:--</span>
-        <span class="subline" id="hdr-date">Sunday, January 1</span>
+        <span class="clock js-clock" id="hdr-clock">--:--</span>
+        <span class="subline js-date" id="hdr-date">Sunday, January 1</span>
       </div>
       <div class="hero-weather-block">
-        <div class="weather-now" id="hdr-weather-now">
-          <span class="wicon" id="hdr-wicon"></span>
-          <span class="wtemp" id="hdr-wtemp">--°</span>
+        <div class="weather-now js-weather-now" id="hdr-weather-now">
+          <span class="wicon js-wicon" id="hdr-wicon"></span>
+          <span class="wtemp js-wtemp" id="hdr-wtemp">--°</span>
         </div>
-        <div class="weather-strip" id="hdr-weather-strip"></div>
+        <div class="weather-strip js-weather-strip" id="hdr-weather-strip"></div>
       </div>
     </div>
 
@@ -482,7 +515,33 @@
 
     <section id="view-calendar" class="view">
       <div id="calendar-week"></div>
-      <div id="calendar-month" class="month-grid" style="display:none"></div>
+      <div id="calendar-month-shell" class="month-shell" style="display:none">
+        <aside class="month-side">
+          <div class="hero-bg" aria-hidden="true">
+            <div class="hero-stars"></div>
+            <svg class="hero-trees hero-trees-back" viewBox="0 0 1200 300" preserveAspectRatio="none"><path d="M 0,300 L 0,294 L 14.0,202 L 28,299 L 47.0,228 L 66,295 L 83.5,216 L 101,292 L 119.0,226 L 137,299 L 149.0,231 L 161,299 L 176.5,133 L 192,292 L 204.5,217 L 217,291 L 232.5,225 L 248,290 L 258.5,183 L 269,300 L 288.0,91 L 307,294 L 325.0,91 L 343,300 L 352.5,184 L 362,296 L 379.5,206 L 397,292 L 412.5,204 L 428,296 L 438.5,94 L 449,299 L 466.5,194 L 484,290 L 502.0,94 L 520,299 L 532.0,145 L 544,291 L 561.5,224 L 579,297 L 588.5,82 L 598,294 L 614.5,104 L 631,293 L 652.0,160 L 673,295 L 691.0,124 L 709,288 L 722.5,177 L 736,299 L 747.5,178 L 759,292 L 777.0,164 L 795,289 L 811.5,153 L 828,291 L 844.0,167 L 860,292 L 870.0,210 L 880,288 L 895.5,198 L 911,293 L 925.0,202 L 939,290 L 954.5,230 L 970,291 L 980.0,98 L 990,289 L 1004.0,153 L 1018,293 L 1032.5,88 L 1047,299 L 1065.0,124 L 1083,293 L 1093.0,171 L 1103,299 L 1123.0,70 L 1143,290 L 1152.5,161 L 1162,296 L 1180.0,126 L 1198,290 L 1200,142 L 1200,295 L 1200,300 Z"/></svg>
+            <svg class="hero-trees hero-trees-front" viewBox="0 0 1200 300" preserveAspectRatio="none"><path d="M 0,300 L 0,300 L 23.0,172 L 46,297 L 70.5,130 L 95,299 L 111.5,165 L 128,299 L 151.5,61 L 175,300 L 197.0,92 L 219,297 L 232.0,177 L 245,300 L 261.5,71 L 278,292 L 299.5,150 L 321,293 L 340.5,144 L 360,300 L 382.0,129 L 404,294 L 429.0,160 L 454,298 L 472.0,129 L 490,299 L 506.0,114 L 522,299 L 536.0,103 L 550,296 L 568.5,112 L 587,293 L 612.5,189 L 638,294 L 659.5,169 L 681,296 L 695.0,59 L 709,295 L 735.0,40 L 761,299 L 783.0,151 L 805,297 L 818.5,31 L 832,299 L 857.0,126 L 882,299 L 908.5,141 L 935,293 L 954.0,129 L 973,298 L 996.0,107 L 1019,297 L 1037.5,110 L 1056,299 L 1079.5,132 L 1103,298 L 1125.5,38 L 1148,298 L 1169.5,138 L 1191,296 L 1200,103 L 1200,292 L 1200,300 Z"/></svg>
+          </div>
+          <div class="hero-overlay" aria-hidden="true"></div>
+          <div class="month-side-content">
+            <div class="hero-clock-block js-clock-block">
+              <span class="clock js-clock" id="mside-clock">--:--</span>
+              <span class="subline js-date" id="mside-date">Sunday, January 1</span>
+            </div>
+            <div class="month-side-weather">
+              <div class="weather-now js-weather-now" id="mside-weather-now">
+                <span class="wicon js-wicon" id="mside-wicon"></span>
+                <span class="wtemp js-wtemp" id="mside-wtemp">--°</span>
+              </div>
+              <div class="weather-strip js-weather-strip" id="mside-weather-strip"></div>
+              <div class="month-side-wind js-wind" id="mside-wind"></div>
+            </div>
+          </div>
+        </aside>
+        <div class="month-grid-wrap">
+          <div id="calendar-month" class="month-grid"></div>
+        </div>
+      </div>
       <button class="fab" id="fab-add-event" aria-label="Add event">+</button>
     </section>
 
@@ -1171,8 +1230,9 @@ function setView(view){
    ========================================================================= */
 function tickClock(){
   const now = new Date();
-  el('hdr-clock').textContent = fmtTime(now);
-  el('hdr-date').textContent = now.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+  const timeStr = fmtTime(now), dateStr = now.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+  document.querySelectorAll('.js-clock').forEach(n=> n.textContent = timeStr);
+  document.querySelectorAll('.js-date').forEach(n=> n.textContent = dateStr);
   if(state.orientation) applyDarkModeSchedule(now);
   if(now.getHours()===RELOAD_HOUR_LOCAL && now.getMinutes()===0 && now.getSeconds()<3){
     location.reload();
@@ -1197,14 +1257,21 @@ function weatherIconSvg(code){
   return `<svg ${a}><circle cx="12" cy="12" r="4"/></svg>`;
 }
 function renderWeatherNow(code, temp){
-  el('hdr-wicon').innerHTML = weatherIconSvg(code);
-  el('hdr-wtemp').textContent = `${temp}°`;
+  document.querySelectorAll('.js-wicon').forEach(n=> n.innerHTML = weatherIconSvg(code));
+  document.querySelectorAll('.js-wtemp').forEach(n=> n.textContent = `${temp}°`);
 }
 function renderWeatherStrip(days){
   // days: [{label, code, temp}, ...]
-  el('hdr-weather-strip').innerHTML = days.map(d=>
+  const html = days.map(d=>
     `<div class="weather-day"><span class="wday">${escapeHtml(d.label)}</span><span class="wicon">${weatherIconSvg(d.code)}</span><span class="wtemp">${d.temp}°</span></div>`
   ).join('');
+  document.querySelectorAll('.js-weather-strip').forEach(n=> n.innerHTML = html);
+}
+const COMPASS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+function renderWind(speed, dirDeg){
+  const dir = COMPASS[Math.round(dirDeg/22.5) % 16];
+  const html = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h11.5a2.5 2.5 0 1 0-2.3-3.4"/><path d="M3 16h14.5a2.5 2.5 0 1 1-2.3 3.4"/><path d="M3 12h8.5a2 2 0 1 1-1.8 2.8"/></svg><span>${Math.round(speed)} mph ${dir}</span>`;
+  document.querySelectorAll('.js-wind').forEach(n=> n.innerHTML = html);
 }
 function showDemoWeather(){
   // Sandboxed previews (and offline/no-geolocation cases) can't reach a
@@ -1213,11 +1280,12 @@ function showDemoWeather(){
   // deployment (Cloudflare Pages, no CSP sandbox) replaces this with a
   // live reading on the next successful fetch.
   renderWeatherNow(2, 22);
-  el('hdr-weather-now').title = 'Demo reading — needs a real deployment (this preview blocks outside network calls) and location access.';
+  document.querySelectorAll('.js-weather-now').forEach(n=> n.title = 'Demo reading — needs a real deployment (this preview blocks outside network calls) and location access.');
   renderWeatherStrip([
     {label:'Fri', code:1, temp:19}, {label:'Sat', code:3, temp:17}, {label:'Sun', code:0, temp:21},
     {label:'Mon', code:61, temp:15}, {label:'Tue', code:2, temp:18},
   ]);
+  renderWind(8, 22);
 }
 async function loadWeather(){
   try{
@@ -1234,10 +1302,11 @@ async function loadWeather(){
       });
     }
     if(lat==null || lon==null){ showDemoWeather(); return; }
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max&forecast_days=6&temperature_unit=celsius&timezone=auto`);
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max&forecast_days=6&temperature_unit=celsius&wind_speed_unit=mph&timezone=auto`);
     const data = await res.json();
-    el('hdr-weather-now').removeAttribute('title');
+    document.querySelectorAll('.js-weather-now').forEach(n=> n.removeAttribute('title'));
     renderWeatherNow(data.current.weather_code, Math.round(data.current.temperature_2m));
+    renderWind(data.current.wind_speed_10m, data.current.wind_direction_10m);
     if(data.daily && data.daily.time.length>1){
       const days = data.daily.time.slice(1,6).map((dateStr,i)=>({
         label: new Date(dateStr+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'}),
@@ -1314,8 +1383,9 @@ document.querySelectorAll('#cal-mode-toggle button').forEach(btn=>{
     if(mode==='month') state.monthDate = new Date(state.weekAnchor);
     else state.weekAnchor = new Date(state.monthDate);
     state.calMode = mode;
+    el('app').dataset.calMode = mode;
     el('calendar-week').style.display = mode==='week' ? '' : 'none';
-    el('calendar-month').style.display = mode==='month' ? '' : 'none';
+    el('calendar-month-shell').style.display = mode==='month' ? '' : 'none';
     loadCalendarData();
   });
 });
