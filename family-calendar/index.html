@@ -288,6 +288,15 @@
     min-width:0; min-height:0; transition: background .15s ease;
   }
   .day-col:last-child{ border-right:none; }
+  /* Portrait: 2 rows x 4 columns (8 days) instead of one 7-across row —
+     each cell gets much more width so titles stop truncating, at the
+     cost of less height per cell (busy days scroll within .col-events,
+     same mechanism as before, just kicking in more often). */
+  #app[data-orientation="portrait"] .week-grid{
+    grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(2,1fr);
+  }
+  #app[data-orientation="portrait"] .day-col:nth-child(4n){ border-right:none; }
+  #app[data-orientation="portrait"] .day-col:nth-child(-n+4){ border-bottom:1px solid var(--gridline); }
   .day-col.is-drop-target{ background:color-mix(in srgb, var(--accent) 14%, transparent); }
   .day-col.is-drop-flash{ animation: dropFlash .5s ease; }
   @keyframes dropFlash{
@@ -1455,8 +1464,14 @@ document.querySelectorAll('#cal-mode-toggle button').forEach(btn=>{
 });
 el('cal-prev').addEventListener('click', ()=> calNav(-1));
 el('cal-next').addEventListener('click', ()=> calNav(1));
+// Portrait's week view is a 2-row x 4-column grid (8 cells) instead of
+// landscape's single 7-across row — 8 days fills that grid exactly with
+// no empty trailing cell. Both paging and the fetch range need to agree
+// with render on this count, so it's one shared helper.
+function weekViewDayCount(){ return state.orientation==='portrait' ? 8 : 7; }
+
 function calNav(dir){
-  if(state.calMode==='week') state.weekAnchor = addDays(state.weekAnchor, 7*dir);
+  if(state.calMode==='week') state.weekAnchor = addDays(state.weekAnchor, weekViewDayCount()*dir);
   else { const d = new Date(state.monthDate); d.setMonth(d.getMonth()+dir); state.monthDate = d; }
   // Next always slides left, prev always slides right — dir *is* the
   // slide direction here, no need to infer it from a date comparison.
@@ -1465,7 +1480,7 @@ function calNav(dir){
 
 async function loadCalendarData(direction){
   let rangeStart, rangeEnd;
-  if(state.calMode==='week'){ rangeStart = state.weekAnchor; rangeEnd = addDays(state.weekAnchor,7); }
+  if(state.calMode==='week'){ rangeStart = state.weekAnchor; rangeEnd = addDays(state.weekAnchor,weekViewDayCount()); }
   else { rangeStart = startOfWeek(new Date(state.monthDate.getFullYear(), state.monthDate.getMonth(), 1)); rangeEnd = addDays(rangeStart, 42); }
 
   state.events = await db.listEvents(rangeStart.toISOString(), rangeEnd.toISOString());
@@ -1474,7 +1489,7 @@ async function loadCalendarData(direction){
 
 function renderCalendarView(direction){
   if(state.calMode==='week'){
-    el('cal-range-label').textContent = `${state.weekAnchor.toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${addDays(state.weekAnchor,6).toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
+    el('cal-range-label').textContent = `${state.weekAnchor.toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${addDays(state.weekAnchor,weekViewDayCount()-1).toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
     renderWeek(direction);
   } else {
     el('cal-range-label').textContent = state.monthDate.toLocaleDateString(undefined,{month:'long', year:'numeric'});
@@ -1661,7 +1676,7 @@ function renderWeek(direction){
   const wrap = document.createElement('div');
   wrap.className = 'week-grid';
   const today = new Date(), tomorrow = addDays(today,1);
-  for(let i=0;i<7;i++){
+  for(let i=0;i<weekViewDayCount();i++){
     const day = addDays(state.weekAnchor, i);
     const isToday = sameDay(day, today);
     const label = isToday ? 'Today' : sameDay(day, tomorrow) ? 'Tomorrow' : day.toLocaleDateString(undefined,{weekday:'long'});
