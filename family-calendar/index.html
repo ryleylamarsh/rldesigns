@@ -358,6 +358,15 @@
   .month-cell{
     border-right:1px solid var(--gridline); border-bottom:1px solid var(--gridline); display:flex; flex-direction:column;
     align-items:flex-start; padding:.4rem .45rem; cursor:pointer; gap:.2rem; min-height:0; min-width:0; overflow:hidden;
+    position:relative;
+  }
+  /* Today: a tinted fill plus an inset ring, rather than just the colored
+     number — needs to read clearly at a glance from across a room. The
+     ring is a separate ::after (not a border on the cell itself) so it
+     doesn't disturb the shared grid lines or shift any cell's box size. */
+  .month-cell.is-today{ background:color-mix(in srgb, var(--accent) 12%, transparent); }
+  .month-cell.is-today::after{
+    content:''; position:absolute; inset:3px; border:2px solid var(--accent); border-radius:8px; pointer-events:none;
   }
   .month-cell.is-today .mnum{ color:var(--accent); }
   .month-cell.is-other-month{ opacity:.35; }
