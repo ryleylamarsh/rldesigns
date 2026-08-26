@@ -300,15 +300,26 @@
      Toolbar now lives in the header, so this view is just the grid. */
   #view-calendar.view:not([hidden]){ display:flex; flex-direction:column; overflow:hidden; }
   /* position:relative + overflow:hidden so the outgoing/incoming grid can
-     be stacked and slid during prev/next paging — see slideReplace(). */
-  #calendar-week{ flex:1; min-height:0; position:relative; overflow:hidden; }
+     be stacked and slid during prev/next paging — see slideReplace(). The
+     wallpaper photo (same one as the header/sidebar — kept in sync via
+     the --wallpaper-img var, set alongside .js-wallpaper-photo in
+     setWallpaperUrl()) shows faintly through here: a near-opaque tint of
+     the theme background sits over it so only a sliver of the photo
+     reads through, then .week-grid itself goes transparent so that
+     shows through its cells rather than being covered by a second
+     opaque layer. */
+  #calendar-week{
+    flex:1; min-height:0; position:relative; overflow:hidden; background-color:var(--bg);
+    background-image:linear-gradient(color-mix(in srgb, var(--bg) 93%, transparent), color-mix(in srgb, var(--bg) 93%, transparent)), var(--wallpaper-img, none);
+    background-size:cover; background-position:center;
+  }
 
   /* Calendar: week — a single full-width row, 7 columns starting from
      today (Today, Tomorrow, then weekday names), hairline dividers only,
      no card boxes/shadows — same shape both orientations */
   .week-grid{
     display:grid; grid-template-columns:repeat(7,1fr); border-top:1px solid var(--gridline);
-    position:absolute; inset:0; width:100%; height:100%; background:var(--bg);
+    position:absolute; inset:0; width:100%; height:100%; background:transparent;
   }
   .day-col{
     border-right:1px solid var(--gridline); padding:.8rem .7rem; display:flex; flex-direction:column; gap:.5rem;
@@ -366,11 +377,12 @@
   /* Calendar: month — plain thin-line grid, no card, no side panel.
      Each cell carries its own compact colored event pills. Absolutely
      positioned within .month-grid-wrap so the outgoing/incoming month
-     can be stacked and slid during prev/next paging — see slideReplace(). */
+     can be stacked and slid during prev/next paging — see slideReplace().
+     Same faint-wallpaper-through-a-tint treatment as #calendar-week above. */
   .month-grid{
     display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:auto repeat(6,1fr);
     border-top:1px solid var(--gridline); border-left:1px solid var(--gridline);
-    position:absolute; inset:0; width:100%; height:100%; background:var(--bg);
+    position:absolute; inset:0; width:100%; height:100%; background:transparent;
   }
   .month-dow{ text-align:center; font-size:.68rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding:.4rem 0; }
   .month-cell{
@@ -431,7 +443,11 @@
   .month-shell{ height:100%; }
   .month-side{ display:none; }
   .month-grid-col{ height:100%; display:flex; flex-direction:column; min-width:0; flex:2 1 0; }
-  .month-grid-wrap{ width:100%; height:100%; position:relative; overflow:hidden; }
+  .month-grid-wrap{
+    width:100%; height:100%; position:relative; overflow:hidden; background-color:var(--bg);
+    background-image:linear-gradient(color-mix(in srgb, var(--bg) 93%, transparent), color-mix(in srgb, var(--bg) 93%, transparent)), var(--wallpaper-img, none);
+    background-size:cover; background-position:center;
+  }
   #app[data-orientation="landscape"][data-cal-mode="month"] #view-calendar{ padding:0; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #calendar-month-shell{ display:flex; }
   #app[data-orientation="landscape"][data-cal-mode="month"] .month-side{
@@ -2305,9 +2321,14 @@ function applyWallpaperPhoto(){
   img.src = url;
 }
 function setWallpaperUrl(url){
+  const cssUrl = `url("${url.replace(/"/g,'%22')}")`;
   document.querySelectorAll('.js-wallpaper-photo').forEach(n=>{
-    n.style.backgroundImage = `url("${url.replace(/"/g,'%22')}")`;
+    n.style.backgroundImage = cssUrl;
   });
+  // Same photo, exposed as a CSS var so the faint backdrop behind the
+  // calendar grid (#calendar-week / .month-grid-wrap) stays in sync
+  // without duplicating the wallpaper-loading logic above.
+  document.documentElement.style.setProperty('--wallpaper-img', cssUrl);
 }
 async function saveSettings(patch){
   Object.assign(state.settings, patch);
