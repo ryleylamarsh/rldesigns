@@ -104,7 +104,13 @@
      different image URL once deployed; the embedded default is always
      the fallback if that fails to load. */
   .hero-bg{ position:absolute; inset:0; z-index:0; overflow:hidden; background:#141225; }
-  .hero-photo{ position:absolute; inset:0; background-size:cover; background-position:center; }
+  /* background-attachment:fixed anchors the image to the *viewport*
+     rather than each element's own box, so every place the photo shows
+     up — header, month sidebar, and the faint version behind the
+     calendar grid (see #calendar-week/.month-grid-wrap below) — is a
+     window onto one single continuously-positioned image instead of each
+     independently re-cropping/re-scaling its own copy. */
+  .hero-photo{ position:absolute; inset:0; background-size:cover; background-position:center; background-attachment:fixed; }
   /* Dual vignette: darkens the top (clock/date/weather) and bottom (the
      toolbar) for contrast, leaving the middle of the photo clear. */
   .hero-overlay{
@@ -311,7 +317,7 @@
   #calendar-week{
     flex:1; min-height:0; position:relative; overflow:hidden; background-color:var(--bg);
     background-image:linear-gradient(color-mix(in srgb, var(--bg) 93%, transparent), color-mix(in srgb, var(--bg) 93%, transparent)), var(--wallpaper-img, none);
-    background-size:cover; background-position:center;
+    background-size:cover; background-position:center; background-attachment:fixed;
   }
 
   /* Calendar: week — a single full-width row, 7 columns starting from
@@ -446,7 +452,7 @@
   .month-grid-wrap{
     width:100%; height:100%; position:relative; overflow:hidden; background-color:var(--bg);
     background-image:linear-gradient(color-mix(in srgb, var(--bg) 93%, transparent), color-mix(in srgb, var(--bg) 93%, transparent)), var(--wallpaper-img, none);
-    background-size:cover; background-position:center;
+    background-size:cover; background-position:center; background-attachment:fixed;
   }
   #app[data-orientation="landscape"][data-cal-mode="month"] #view-calendar{ padding:0; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #calendar-month-shell{ display:flex; }
