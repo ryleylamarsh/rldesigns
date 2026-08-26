@@ -140,15 +140,27 @@
   .cal-period-label .cal-period-year{ font-size:1rem; font-weight:400; color:rgba(255,255,255,.7); }
   /* "Back to Today" lives between the prev/next arrows now, inside the
      same glass-group pill, and only takes up space once you've paged
-     away from the current week/month — see updateTodayButton(). With it
-     hidden the two arrows just sit flush together. */
+     away from the current week/month — see updateTodayButton(). Animated
+     open/closed (width+padding+margin, not display:none) so appearing
+     visibly pushes the prev arrow leftward rather than just popping in —
+     the pill's right edge stays pinned to the toolbar's right edge (see
+     margin-left:auto above), so growing its content can only push the
+     *left* side outward. #cal-prev's own margin-right supplies the gap
+     to #cal-next when the today button is collapsed to zero width, so
+     the two arrows land flush together with no leftover gap. */
+  .glass-group #cal-prev{ margin-right:.3rem; }
   .glass-group .cal-today-inline{
-    display:none; align-items:center; height:var(--tap-min); padding:0 .85rem;
+    display:flex; align-items:center; justify-content:center; height:var(--tap-min);
+    width:0; padding:0; margin-right:0; opacity:0; overflow:hidden;
     border-radius:999px; background:rgba(255,255,255,.16); border:none;
     color:#fff; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.02em;
-    cursor:pointer; white-space:nowrap; flex-shrink:0;
+    cursor:pointer; white-space:nowrap; flex-shrink:0; pointer-events:none;
+    transition:width .32s cubic-bezier(.22,.9,.32,1), padding .32s cubic-bezier(.22,.9,.32,1),
+      margin-right .32s cubic-bezier(.22,.9,.32,1), opacity .22s ease;
   }
-  .glass-group .cal-today-inline:not([hidden]){ display:flex; }
+  .glass-group .cal-today-inline.is-visible{
+    width:8.4rem; padding:0 .85rem; margin-right:.3rem; opacity:1; pointer-events:auto;
+  }
   .glass-group .cal-today-inline:active{ transform:scale(.96); }
 
   /* Calendar view only: the header grows into the full wallpaper hero from
@@ -190,7 +202,11 @@
      border + inner highlight. Touch targets stay at --tap-min regardless
      of the compact look; density comes from styling, not smaller hitboxes. */
   .glass-group{
-    display:flex; align-items:center; gap:.3rem; background:rgba(255,255,255,.12);
+    /* No `gap` here — spacing between the arrows/today-button is done
+       with explicit margins (see #cal-prev and .cal-today-inline below)
+       so the today-button's open/close animation can collapse its own
+       surrounding space to exactly zero, not just its own width. */
+    display:flex; align-items:center; background:rgba(255,255,255,.12);
     backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
     border:1px solid rgba(255,255,255,.2); border-radius:999px; padding:.25rem;
     margin-left:auto; /* pushes the prev/next pill to the toolbar's right edge */
@@ -627,7 +643,7 @@
         </div>
         <div class="glass-group">
           <button class="glass-icon-btn" id="cal-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
-          <button class="cal-today-inline" id="cal-today-btn" hidden>Back to Today</button>
+          <button class="cal-today-inline" id="cal-today-btn">Back to Today</button>
           <button class="glass-icon-btn" id="cal-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
         </div>
       </div>
@@ -1605,7 +1621,7 @@ function updateTodayButton(){
   const onCurrent = state.calMode==='week'
     ? sameDay(state.weekAnchor, today)
     : (state.monthDate.getFullYear()===today.getFullYear() && state.monthDate.getMonth()===today.getMonth());
-  el('cal-today-btn').hidden = onCurrent;
+  el('cal-today-btn').classList.toggle('is-visible', !onCurrent);
 }
 el('cal-today-btn').addEventListener('click', ()=>{
   // Slide toward today the same way paging would: forward in time slides
