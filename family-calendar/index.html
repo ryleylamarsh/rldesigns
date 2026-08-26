@@ -78,6 +78,15 @@
     grid-template-areas: "nav header" "nav main";
   }
 
+  /* Week/month cross-fade — see switchCalMode(). Week and month are
+     structurally different enough (single grid vs. photo-sidebar layout,
+     header shown vs. collapsed) that sliding one into the other would
+     look like two unrelated layouts colliding, so both header and main
+     fade+scale out together, swap instantly while invisible, then
+     fade+scale back in as the new layout. */
+  header#header, #main{ transition: opacity .22s ease, transform .22s ease; }
+  .cal-mode-swap header#header, .cal-mode-swap #main{ opacity:0; transform:scale(.97); pointer-events:none; }
+
   /* Header — a permanent-dark "wallpaper" hero: time+date, current weather
      + a short forecast strip, with a glass toolbar (nav/filter/Week-Month)
      for the Calendar view floating on top. This panel does not follow the
@@ -359,18 +368,19 @@
 
   /* Calendar: month, landscape only — a left wallpaper sidebar (the same
      night-sky/aurora/pine art as the header) carrying clock, date,
-     weather and wind, beside the month grid forced into a perfect
-     square. Portrait keeps the plain full-width grid under the normal
-     header instead — there's no width to spare for a sidebar there. */
+     weather and wind, beside the month grid — a fixed 1/3 (sidebar) to
+     2/3 (grid) split of the screen width. Portrait keeps the plain
+     full-width grid under the normal header instead — there's no width
+     to spare for a sidebar there. */
   .month-shell{ height:100%; }
   .month-side{ display:none; }
-  .month-grid-col{ height:100%; display:flex; flex-direction:column; min-width:0; flex:1; }
+  .month-grid-col{ height:100%; display:flex; flex-direction:column; min-width:0; flex:2 1 0; }
   .month-grid-wrap{ width:100%; height:100%; position:relative; overflow:hidden; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #view-calendar{ padding:0; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #calendar-month-shell{ display:flex; }
   #app[data-orientation="landscape"][data-cal-mode="month"] .month-side{
     display:flex; flex-direction:column; position:relative; overflow:hidden; color:#fff;
-    flex:1 1 auto; min-width:14rem; padding:1.6rem 1.6rem 1.8rem;
+    flex:1 1 0; min-width:0; padding:1.6rem 1.6rem 1.8rem;
   }
   /* Toolbar lives here (relocated from the header by JS — see
      relocateToolbar()) so it's left-aligned to the grid, not the photo
@@ -378,13 +388,12 @@
      it's simply empty (and takes no space) otherwise. */
   #month-toolbar-anchor:not(:empty){ padding:1.6rem 1.6rem 0; flex-shrink:0; }
   #app[data-orientation="landscape"][data-cal-mode="month"] .month-grid-wrap{
-    /* .month-grid-wrap now shares its flex column with #month-toolbar-anchor
-       (see the html restructure above), so it can no longer just claim
-       height:100% of that column — the toolbar's own height needs to come
-       out of that first. flex:1 with min-height:0 lets it take exactly
-       what's left after the toolbar, then aspect-ratio keeps it square by
-       deriving width from that resolved height. */
-    flex:1 1 0; min-height:0; aspect-ratio:1/1; width:auto; max-width:100%;
+    /* .month-grid-wrap shares its flex column with #month-toolbar-anchor
+       (see the html restructure above), so it can't just claim height:100%
+       of that column — the toolbar's own height needs to come out of that
+       first. flex:1 with min-height:0 fills exactly what's left, at the
+       column's full width (the 2/3 split above already fixed that). */
+    flex:1 1 0; min-height:0; width:100%;
   }
   .month-side-content{ position:relative; z-index:1; display:flex; flex-direction:column; height:100%; }
   .month-side-weather{ margin-top:auto; display:flex; flex-direction:column; gap:1rem; align-items:flex-start; }
@@ -1481,21 +1490,35 @@ function passesFilter(memberId){ return state.activeFilter.size===0 || state.act
    Calendar
    ========================================================================= */
 document.querySelectorAll('#cal-mode-toggle button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('#cal-mode-toggle button').forEach(b=>b.classList.remove('is-active'));
-    btn.classList.add('is-active');
-    const mode = btn.dataset.mode;
-    // Keep the two views looking at the same stretch of time as you switch.
-    if(mode==='month') state.monthDate = new Date(state.weekAnchor);
-    else state.weekAnchor = new Date(state.monthDate);
-    state.calMode = mode;
-    el('app').dataset.calMode = mode;
-    el('calendar-week').style.display = mode==='week' ? '' : 'none';
-    el('calendar-month-shell').style.display = mode==='month' ? '' : 'none';
-    relocateToolbar();
-    loadCalendarData();
-  });
+  btn.addEventListener('click', ()=> switchCalMode(btn.dataset.mode, btn));
 });
+// Week and month use two different layouts (see the CSS comment above), so
+// rather than sliding one into the other, the whole header+main area fades
+// and scales out, the layout swap happens instantly while invisible, then
+// the new layout fades back in once its data is loaded — see the
+// .cal-mode-swap rule above.
+let calModeSwapToken = 0;
+async function switchCalMode(mode, btn){
+  if(mode===state.calMode) return;
+  document.querySelectorAll('#cal-mode-toggle button').forEach(b=>b.classList.toggle('is-active', b===btn));
+  // Keep the two views looking at the same stretch of time as you switch.
+  if(mode==='month') state.monthDate = new Date(state.weekAnchor);
+  else state.weekAnchor = new Date(state.monthDate);
+
+  const myToken = ++calModeSwapToken;
+  el('app').classList.add('cal-mode-swap');
+  await new Promise(r=> setTimeout(r, 220));
+  if(myToken !== calModeSwapToken) return; // a newer switch started mid-fade
+
+  state.calMode = mode;
+  el('app').dataset.calMode = mode;
+  el('calendar-week').style.display = mode==='week' ? '' : 'none';
+  el('calendar-month-shell').style.display = mode==='month' ? '' : 'none';
+  relocateToolbar();
+  await loadCalendarData();
+  if(myToken !== calModeSwapToken) return;
+  el('app').classList.remove('cal-mode-swap');
+}
 el('cal-prev').addEventListener('click', ()=> calNav(-1));
 el('cal-next').addEventListener('click', ()=> calNav(1));
 // Portrait's week view is a 2-row x 4-column grid (8 cells) instead of
