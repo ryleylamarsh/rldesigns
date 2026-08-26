@@ -364,6 +364,7 @@
      header instead — there's no width to spare for a sidebar there. */
   .month-shell{ height:100%; }
   .month-side{ display:none; }
+  .month-grid-col{ height:100%; display:flex; flex-direction:column; min-width:0; flex:1; }
   .month-grid-wrap{ width:100%; height:100%; position:relative; overflow:hidden; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #view-calendar{ padding:0; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #calendar-month-shell{ display:flex; }
@@ -371,8 +372,19 @@
     display:flex; flex-direction:column; position:relative; overflow:hidden; color:#fff;
     flex:1 1 auto; min-width:14rem; padding:1.6rem 1.6rem 1.8rem;
   }
+  /* Toolbar lives here (relocated from the header by JS — see
+     relocateToolbar()) so it's left-aligned to the grid, not the photo
+     sidebar. #month-toolbar-anchor is only ever populated in this mode;
+     it's simply empty (and takes no space) otherwise. */
+  #month-toolbar-anchor:not(:empty){ padding:1.6rem 1.6rem 0; flex-shrink:0; }
   #app[data-orientation="landscape"][data-cal-mode="month"] .month-grid-wrap{
-    flex:0 0 auto; height:100%; aspect-ratio:1/1; width:auto;
+    /* .month-grid-wrap now shares its flex column with #month-toolbar-anchor
+       (see the html restructure above), so it can no longer just claim
+       height:100% of that column — the toolbar's own height needs to come
+       out of that first. flex:1 with min-height:0 lets it take exactly
+       what's left after the toolbar, then aspect-ratio keeps it square by
+       deriving width from that resolved height. */
+    flex:1 1 0; min-height:0; aspect-ratio:1/1; width:auto; max-width:100%;
   }
   .month-side-content{ position:relative; z-index:1; display:flex; flex-direction:column; height:100%; }
   .month-side-weather{ margin-top:auto; display:flex; flex-direction:column; gap:1rem; align-items:flex-start; }
@@ -380,14 +392,16 @@
   .month-side-wind{ display:flex; align-items:center; gap:.5rem; font-size:.85rem; font-weight:600; color:rgba(255,255,255,.75); }
   .month-side-wind svg{ width:1.2rem; height:1.2rem; flex-shrink:0; }
 
-  /* Header shrinks to a slim toolbar strip in this mode — the sidebar
-     already shows clock/date/weather, so the full hero would be
-     redundant with the room the square grid needs. Scoped to the
-     Calendar view specifically — data-cal-mode persists in the background
-     while browsing other tabs, and shouldn't shrink their header too. */
-  #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] .hero-main{ display:none; }
-  #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] header#header{ height:auto; min-height:0; padding:.6rem 1.2rem; }
-  #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] .header-cal-toolbar-wrap{ margin-top:0; }
+  /* Header collapses away entirely in this mode (rather than shrinking to
+     a slim strip) — the toolbar has relocated into the grid column and
+     the sidebar already shows clock/date/weather, so there's nothing left
+     for the header to show; leaving it present just meant a second,
+     differently-cropped sliver of the wallpaper photo sitting above the
+     sidebar's own copy. Collapsing it lets the sidebar photo run the full
+     screen height uninterrupted. Scoped to the Calendar view specifically
+     — data-cal-mode persists in the background while browsing other tabs,
+     and shouldn't hide their header too. */
+  #app[data-orientation="landscape"][data-view="calendar"][data-cal-mode="month"] header#header{ display:none; }
 
   .agenda-date-label{ font-weight:700; font-size:1.1rem; margin-bottom:.8rem; flex-shrink:0; }
   .agenda-list{ display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; flex:1; min-height:0; }
@@ -596,7 +610,10 @@
             </div>
           </div>
         </aside>
-        <div class="month-grid-wrap" id="calendar-month-wrap"></div>
+        <div class="month-grid-col">
+          <div id="month-toolbar-anchor"></div>
+          <div class="month-grid-wrap" id="calendar-month-wrap"></div>
+        </div>
       </div>
       <button class="fab" id="fab-add-event" aria-label="Add event">+</button>
     </section>
@@ -1275,7 +1292,23 @@ function applyOrientation(){
   const mq = window.matchMedia('(orientation: portrait)');
   state.orientation = mq.matches ? 'portrait' : 'landscape';
   el('app').setAttribute('data-orientation', state.orientation);
+  relocateToolbar();
   renderCalendarView();
+}
+
+// Landscape month view moves the toolbar (prev/next, family chips, mode
+// toggle) out of the header and into a slot above the grid column, so it
+// lands left-aligned with the grid instead of the photo sidebar — and the
+// now-empty header can just hide (see the CSS above). Every other
+// orientation/mode combo keeps it in the header where it's always lived.
+// appendChild relocates the existing node rather than re-creating it, so
+// its bound listeners (cal-prev/next, filter chips, mode toggle) survive
+// the move.
+function relocateToolbar(){
+  const toolbar = el('header-cal-toolbar-wrap');
+  const inGridMode = state.orientation==='landscape' && state.calMode==='month';
+  const target = inGridMode ? el('month-toolbar-anchor') : el('header');
+  if(toolbar.parentElement !== target) target.appendChild(toolbar);
 }
 window.matchMedia('(orientation: portrait)').addEventListener('change', applyOrientation);
 window.addEventListener('resize', applyOrientation);
@@ -1459,6 +1492,7 @@ document.querySelectorAll('#cal-mode-toggle button').forEach(btn=>{
     el('app').dataset.calMode = mode;
     el('calendar-week').style.display = mode==='week' ? '' : 'none';
     el('calendar-month-shell').style.display = mode==='month' ? '' : 'none';
+    relocateToolbar();
     loadCalendarData();
   });
 });
