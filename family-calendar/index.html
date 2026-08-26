@@ -977,7 +977,9 @@ async function initDb(){
     db = supabaseDb(sb);
   } else {
     console.info("Family Calendar: no Supabase project configured — running in local sandbox/demo mode. Data lives only in this browser's storage. Fill in SUPABASE_URL/SUPABASE_ANON_KEY at the top of index.html to connect a real backend (see README.md).");
-    el('demo-badge').classList.add('is-visible');
+    // Badge intentionally left off for now — flip this back on when it's
+    // useful to have an on-screen reminder that data isn't persisted.
+    // el('demo-badge').classList.add('is-visible');
     db = localDb();
   }
 }
