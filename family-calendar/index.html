@@ -111,38 +111,6 @@
     position:absolute; inset:0; z-index:0; pointer-events:none;
     background:linear-gradient(180deg, rgba(4,4,12,.58) 0%, rgba(4,4,12,.12) 28%, transparent 50%, rgba(4,4,12,.1) 68%, rgba(4,4,12,.56) 100%);
   }
-
-  /* Reflection: the calendar grid mirrors whichever full-opacity copy of
-     the wallpaper sits next to it, like a glossy surface — the header's
-     photo reflected downward across the header/grid seam in week mode
-     and portrait month mode, or the month sidebar's photo reflected
-     rightward across the sidebar/grid seam in landscape month mode
-     (where there's no header above the grid to reflect instead). Each
-     is its own .js-wallpaper-photo element (same image, kept in sync by
-     setWallpaperUrl()) rather than a real optical reflection of the
-     adjacent element — it doesn't need to line up pixel-for-pixel to
-     read as "the photo continuing", just needs the same source image,
-     flipped, fading out from the seam. Sits behind the grid's own
-     (transparent) cells — see .week-grid/.month-grid — and .hidden by
-     default; only the two rules below turn each on for its own mode. */
-  .wallpaper-reflect{
-    position:absolute; z-index:0; pointer-events:none; display:none;
-    background-size:cover; background-position:center; opacity:.32;
-  }
-  .reflect-header{
-    top:0; left:0; right:0; height:40vmin; transform:scaleY(-1);
-    mask-image:linear-gradient(to bottom, #000, transparent);
-    -webkit-mask-image:linear-gradient(to bottom, #000, transparent);
-  }
-  .reflect-sidebar{
-    top:0; bottom:0; left:0; width:40vmin; transform:scaleX(-1);
-    mask-image:linear-gradient(to right, #000, transparent);
-    -webkit-mask-image:linear-gradient(to right, #000, transparent);
-  }
-  #calendar-week .reflect-header{ display:block; }
-  #app[data-orientation="portrait"][data-cal-mode="month"] .reflect-header{ display:block; }
-  #app[data-orientation="landscape"][data-cal-mode="month"] .reflect-sidebar{ display:block; }
-
   .hero-main{ display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; position:relative; z-index:1; }
   .hero-clock-block{ display:flex; flex-direction:column; gap:.15rem; }
   .hero-clock-block .clock{ font-size:2.3rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; color:#fff; }
@@ -332,24 +300,15 @@
      Toolbar now lives in the header, so this view is just the grid. */
   #view-calendar.view:not([hidden]){ display:flex; flex-direction:column; overflow:hidden; }
   /* position:relative + overflow:hidden so the outgoing/incoming grid can
-     be stacked and slid during prev/next paging — see slideReplace().
-     #calendar-week-slides is the actual slideReplace container (holding
-     the .week-grid element(s)) — a level down from #calendar-week itself
-     so the persistent .wallpaper-reflect layer (a sibling, see below)
-     isn't wiped out by slideReplace's container.innerHTML='' on the
-     first render. */
-  #calendar-week{ flex:1; min-height:0; position:relative; overflow:hidden; background:var(--bg); }
-  #calendar-week-slides{ position:absolute; inset:0; }
+     be stacked and slid during prev/next paging — see slideReplace(). */
+  #calendar-week{ flex:1; min-height:0; position:relative; overflow:hidden; }
 
   /* Calendar: week — a single full-width row, 7 columns starting from
      today (Today, Tomorrow, then weekday names), hairline dividers only,
-     no card boxes/shadows — same shape both orientations. Transparent
-     background so the reflection (below) shows through near the top
-     seam; everywhere else it just reveals #calendar-week's own solid
-     --bg behind it, same as before the reflection existed. */
+     no card boxes/shadows — same shape both orientations */
   .week-grid{
     display:grid; grid-template-columns:repeat(7,1fr); border-top:1px solid var(--gridline);
-    position:absolute; inset:0; width:100%; height:100%; background:transparent;
+    position:absolute; inset:0; width:100%; height:100%; background:var(--bg);
   }
   .day-col{
     border-right:1px solid var(--gridline); padding:.8rem .7rem; display:flex; flex-direction:column; gap:.5rem;
@@ -407,13 +366,11 @@
   /* Calendar: month — plain thin-line grid, no card, no side panel.
      Each cell carries its own compact colored event pills. Absolutely
      positioned within .month-grid-wrap so the outgoing/incoming month
-     can be stacked and slid during prev/next paging — see slideReplace().
-     Transparent background — same reflection-shows-through treatment as
-     #calendar-week above. */
+     can be stacked and slid during prev/next paging — see slideReplace(). */
   .month-grid{
     display:grid; grid-template-columns:repeat(7,1fr); grid-template-rows:auto repeat(6,1fr);
     border-top:1px solid var(--gridline); border-left:1px solid var(--gridline);
-    position:absolute; inset:0; width:100%; height:100%; background:transparent;
+    position:absolute; inset:0; width:100%; height:100%; background:var(--bg);
   }
   .month-dow{ text-align:center; font-size:.68rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding:.4rem 0; }
   .month-cell{
@@ -474,8 +431,7 @@
   .month-shell{ height:100%; }
   .month-side{ display:none; }
   .month-grid-col{ height:100%; display:flex; flex-direction:column; min-width:0; flex:2 1 0; }
-  .month-grid-wrap{ width:100%; height:100%; position:relative; overflow:hidden; background:var(--bg); }
-  #calendar-month-wrap{ position:absolute; inset:0; }
+  .month-grid-wrap{ width:100%; height:100%; position:relative; overflow:hidden; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #view-calendar{ padding:0; }
   #app[data-orientation="landscape"][data-cal-mode="month"] #calendar-month-shell{ display:flex; }
   #app[data-orientation="landscape"][data-cal-mode="month"] .month-side{
@@ -700,10 +656,7 @@
     <div id="demo-badge">Local sandbox — not saved to any server</div>
 
     <section id="view-calendar" class="view">
-      <div id="calendar-week">
-        <div class="wallpaper-reflect reflect-header js-wallpaper-photo" aria-hidden="true"></div>
-        <div id="calendar-week-slides"></div>
-      </div>
+      <div id="calendar-week"></div>
       <div id="calendar-month-shell" class="month-shell" style="display:none">
         <aside class="month-side">
           <div class="hero-bg" aria-hidden="true">
@@ -727,11 +680,7 @@
         </aside>
         <div class="month-grid-col">
           <div id="month-toolbar-anchor"></div>
-          <div class="month-grid-wrap">
-            <div class="wallpaper-reflect reflect-header js-wallpaper-photo" aria-hidden="true"></div>
-            <div class="wallpaper-reflect reflect-sidebar js-wallpaper-photo" aria-hidden="true"></div>
-            <div id="calendar-month-wrap"></div>
-          </div>
+          <div class="month-grid-wrap" id="calendar-month-wrap"></div>
         </div>
       </div>
       <button class="fab" id="fab-add-event" aria-label="Add event">+</button>
@@ -1842,7 +1791,7 @@ function slideReplace(container, newEl, direction){
 }
 
 function renderWeek(direction){
-  const container = el('calendar-week-slides');
+  const container = el('calendar-week');
   const wrap = document.createElement('div');
   wrap.className = 'week-grid';
   const today = new Date(), tomorrow = addDays(today,1);
@@ -2356,14 +2305,9 @@ function applyWallpaperPhoto(){
   img.src = url;
 }
 function setWallpaperUrl(url){
-  const cssUrl = `url("${url.replace(/"/g,'%22')}")`;
   document.querySelectorAll('.js-wallpaper-photo').forEach(n=>{
-    n.style.backgroundImage = cssUrl;
+    n.style.backgroundImage = `url("${url.replace(/"/g,'%22')}")`;
   });
-  // Same photo, exposed as a CSS var so the faint backdrop behind the
-  // calendar grid (#calendar-week / .month-grid-wrap) stays in sync
-  // without duplicating the wallpaper-loading logic above.
-  document.documentElement.style.setProperty('--wallpaper-img', cssUrl);
 }
 async function saveSettings(patch){
   Object.assign(state.settings, patch);
