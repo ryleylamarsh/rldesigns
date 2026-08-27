@@ -264,14 +264,15 @@
   }
 
   /* Timer -------------------------------------------------------------
-     Round trigger next to each clock (there are two — the main header
-     and the month-view sidebar — see .timer-trigger-hdr/-mside in HTML;
-     both open the one shared panel below via openTimerPanel(), which
-     computes the FLIP-style expand animation from whichever button was
-     tapped). .hero-clock-block goes from a column to a row to fit the
-     button beside the clock/date text without disturbing its layout. */
-  .hero-clock-block{ display:flex; align-items:center; gap:.7rem; }
-  .hero-clock-text{ display:flex; flex-direction:column; gap:.15rem; }
+     Round trigger sits right next to the time itself (not the date
+     line below it) — see .timer-trigger-hdr/-mside in HTML; both open
+     the one shared panel below via openTimerPanel(), which computes the
+     FLIP-style expand animation from whichever button was tapped.
+     .hero-clock-block stays its original column (time row, then date
+     below); .hero-clock-toprow is the new row holding just the time +
+     button, so the button's vertical center lines up with the time
+     specifically instead of the whole two-line block. */
+  .hero-clock-toprow{ display:flex; align-items:center; gap:.6rem; }
   /* Sized in em off its own font-size (set to match .hero-clock-block
      .clock's font-size exactly, in each of its breakpoints below) so
      width/height:1em always equals the clock text's height without
@@ -723,14 +724,14 @@
     <div class="hero-overlay" aria-hidden="true"></div>
     <div class="hero-main">
       <div class="hero-clock-block">
-        <div class="hero-clock-text">
+        <div class="hero-clock-toprow">
           <span class="clock js-clock" id="hdr-clock">--:--</span>
-          <span class="subline js-date" id="hdr-date">Sunday, January 1</span>
+          <button class="timer-trigger" id="timer-trigger-hdr" aria-label="Timer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
+            <span class="ttt"></span>
+          </button>
         </div>
-        <button class="timer-trigger" id="timer-trigger-hdr" aria-label="Timer">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
-          <span class="ttt"></span>
-        </button>
+        <span class="subline js-date" id="hdr-date">Sunday, January 1</span>
       </div>
       <div class="hero-weather-block">
         <div class="weather-now js-weather-now" id="hdr-weather-now">
@@ -776,14 +777,14 @@
           <div class="hero-overlay" aria-hidden="true"></div>
           <div class="month-side-content">
             <div class="hero-clock-block js-clock-block">
-              <div class="hero-clock-text">
+              <div class="hero-clock-toprow">
                 <span class="clock js-clock" id="mside-clock">--:--</span>
-                <span class="subline js-date" id="mside-date">Sunday, January 1</span>
+                <button class="timer-trigger" id="timer-trigger-mside" aria-label="Timer">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
+                  <span class="ttt"></span>
+                </button>
               </div>
-              <button class="timer-trigger" id="timer-trigger-mside" aria-label="Timer">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
-                <span class="ttt"></span>
-              </button>
+              <span class="subline js-date" id="mside-date">Sunday, January 1</span>
             </div>
             <div class="month-side-weather">
               <div class="weather-now js-weather-now" id="mside-weather-now">
