@@ -117,13 +117,13 @@
   .hero-clock-block .subline{ font-size:.9rem; color:rgba(255,255,255,.68); font-weight:600; }
 
   .hero-weather-block{ display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
-  .weather-now{ display:flex; align-items:center; gap:.5rem; }
-  .weather-now .wicon svg{ width:2.1rem; height:2.1rem; display:block; }
-  .weather-now .wtemp{ font-size:1.5rem; font-weight:700; }
-  .weather-strip{ display:flex; gap:.85rem; padding-left:1rem; border-left:1px solid rgba(255,255,255,.16); }
-  .weather-day{ display:flex; flex-direction:column; align-items:center; gap:.15rem; font-size:.66rem; color:rgba(255,255,255,.6); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
-  .weather-day .wicon svg{ width:1.15rem; height:1.15rem; color:rgba(255,255,255,.82); display:block; }
-  .weather-day .wtemp{ font-size:.72rem; color:#fff; font-weight:700; text-transform:none; letter-spacing:0; }
+  .weather-now{ display:flex; align-items:center; gap:.63rem; }
+  .weather-now .wicon svg{ width:2.63rem; height:2.63rem; display:block; }
+  .weather-now .wtemp{ font-size:1.88rem; font-weight:700; }
+  .weather-strip{ display:flex; gap:1.06rem; padding-left:1.25rem; border-left:1px solid rgba(255,255,255,.16); }
+  .weather-day{ display:flex; flex-direction:column; align-items:center; gap:.19rem; font-size:.83rem; color:rgba(255,255,255,.6); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
+  .weather-day .wicon svg{ width:1.44rem; height:1.44rem; color:rgba(255,255,255,.82); display:block; }
+  .weather-day .wtemp{ font-size:.9rem; color:#fff; font-weight:700; text-transform:none; letter-spacing:0; }
 
   /* Current-conditions weather icon animates (Meteocons' own native SMIL
      animations — rotating sun, drifting cloud, falling rain, etc.); the
@@ -195,21 +195,21 @@
      header (which reuses the same .hero-weather-block markup) stays
      small. The month-view sidebar keeps its own sizing below — its
      .weather-now/.weather-strip aren't inside .hero-weather-block. */
-  #app[data-view="calendar"] .hero-weather-block{ flex-direction:column; align-items:flex-end; gap:.9vmin; }
-  #app[data-view="calendar"] .hero-weather-block .weather-now{ gap:1.1vmin; }
-  #app[data-view="calendar"] .hero-weather-block .weather-now .wicon svg{ width:6.6vmin; height:6.6vmin; }
-  #app[data-view="calendar"] .hero-weather-block .weather-now .wtemp{ font-size:6.6vmin; }
-  #app[data-view="calendar"] .hero-weather-block .weather-strip{ border-left:none; padding-left:0; gap:1.8vmin; }
-  #app[data-view="calendar"] .hero-weather-block .weather-day{ font-size:1.3vmin; gap:.4vmin; }
-  #app[data-view="calendar"] .hero-weather-block .weather-day .wicon svg{ width:2.8vmin; height:2.8vmin; }
-  #app[data-view="calendar"] .hero-weather-block .weather-day .wtemp{ font-size:1.5vmin; }
+  #app[data-view="calendar"] .hero-weather-block{ flex-direction:column; align-items:flex-end; gap:1.13vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-now{ gap:1.38vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-now .wicon svg{ width:8.25vmin; height:8.25vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-now .wtemp{ font-size:8.25vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-strip{ border-left:none; padding-left:0; gap:2.25vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-day{ font-size:1.63vmin; gap:.5vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-day .wicon svg{ width:3.5vmin; height:3.5vmin; }
+  #app[data-view="calendar"] .hero-weather-block .weather-day .wtemp{ font-size:1.88vmin; }
 
-  .month-side-weather .weather-now .wicon svg{ width:4.4vmin; height:4.4vmin; }
-  .month-side-weather .weather-now .wtemp{ font-size:3.6vmin; }
-  .month-side-weather .weather-strip{ gap:1.4vmin; }
-  .month-side-weather .weather-day{ font-size:1.05vmin; gap:.3vmin; }
-  .month-side-weather .weather-day .wicon svg{ width:2vmin; height:2vmin; }
-  .month-side-weather .weather-day .wtemp{ font-size:1.2vmin; }
+  .month-side-weather .weather-now .wicon svg{ width:5.5vmin; height:5.5vmin; }
+  .month-side-weather .weather-now .wtemp{ font-size:4.5vmin; }
+  .month-side-weather .weather-strip{ gap:1.75vmin; }
+  .month-side-weather .weather-day{ font-size:1.31vmin; gap:.38vmin; }
+  .month-side-weather .weather-day .wicon svg{ width:2.5vmin; height:2.5vmin; }
+  .month-side-weather .weather-day .wtemp{ font-size:1.5vmin; }
 
   /* Glass ("liquid glass") controls — frosted, translucent, thin light
      border + inner highlight. Touch targets stay at --tap-min regardless
@@ -2322,10 +2322,29 @@ function namespaceSvgIds(svg, ns){
   });
   return out;
 }
+// Runs each icon ~20% faster than its native Meteocons timing. Only
+// dur="Xs" and the numeric time tokens inside begin="..." (e.g. the "1s"
+// in "x1.end+1s", or the "1.34s"/".67s" stagger offsets between rain
+// drops) are actual durations — keyTimes="0; .25; 1" are 0-1 progress
+// fractions *within* a duration, and values="..." on
+// animate/animateTransform are opacity/position/rotation amounts, so
+// neither gets touched (and this only ever matches dur=/begin=, so it
+// couldn't touch them by accident anyway). Scaling every timing number
+// by the same factor keeps each icon's internal stagger — three rain
+// drops evenly spaced, snowflakes offset a third of a cycle apart —
+// proportionally identical, just compressed.
+const WEATHER_ANIM_SPEED = 1.2;
+function scaleSvgTiming(svg, factor){
+  const scaleTimeTokens = (val)=> val.replace(/(-?\.?\d+(?:\.\d+)?)s/g, (m, num)=>
+    (Math.round(parseFloat(num) / factor * 100) / 100) + 's');
+  return svg
+    .replace(/dur="([^"]*)"/g, (m, val)=> `dur="${scaleTimeTokens(val)}"`)
+    .replace(/begin="([^"]*)"/g, (m, val)=> `begin="${scaleTimeTokens(val)}"`);
+}
 const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 function weatherIconSvg(code, animated, ns){
   const raw = WEATHER_ICON_RAW[weatherBucketFor(code)];
-  const withMotion = (animated && !prefersReducedMotion) ? raw : stripSvgAnimations(raw);
+  const withMotion = (animated && !prefersReducedMotion) ? scaleSvgTiming(raw, WEATHER_ANIM_SPEED) : stripSvgAnimations(raw);
   return namespaceSvgIds(withMotion, ns || ('wx'+Math.random().toString(36).slice(2,8)));
 }
 function renderWeatherNow(code, temp){
