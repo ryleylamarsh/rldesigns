@@ -135,7 +135,11 @@
      see .glass-group below). Month carries the weight, year just tags
      along lighter/smaller so the eye lands on the thing that actually
      changes when paging. */
-  .cal-period-label{ display:flex; align-items:baseline; gap:.4rem; color:#fff; }
+  /* min-width sized to the longest month name ("September" + " 2026",
+     measured) so switching months never reflows the family filter chips,
+     Week/Month toggle, or arrow pill sitting after it in the toolbar —
+     shorter months just leave empty space in the reserved box instead. */
+  .cal-period-label{ display:flex; align-items:baseline; gap:.4rem; color:#fff; min-width:11.2rem; }
   .cal-period-label .cal-period-month{ font-size:1.3rem; font-weight:800; }
   .cal-period-label .cal-period-year{ font-size:1rem; font-weight:400; color:rgba(255,255,255,.7); }
   /* "Back to Today" lives between the prev/next arrows now, inside the
@@ -273,21 +277,22 @@
      button, so the button's vertical center lines up with the time
      specifically instead of the whole two-line block. */
   .hero-clock-toprow{ display:flex; align-items:center; gap:.6rem; }
-  /* Same fixed size as every other round icon button in the app
-     (.glass-icon-btn etc. — --tap-min) rather than scaling with the
-     clock text, so it reads as one consistent button size everywhere
-     instead of ballooning to match the big hero clock in calendar view.
-     font-size here only sizes the icon/running-time text (in em, below)
-     — it no longer drives the button's own box size. */
+  /* A deliberately bigger, more prominent button than the small
+     --tap-min icon buttons elsewhere — it sits right next to the hero
+     clock as its own feature, not a minor toolbar action. font-size
+     here sizes the icon/running-time text (in em, below) as well as the
+     button's own box, so both grow together; scaled up a bit further in
+     calendar view to stay proportionate to the big hero clock there. */
   .timer-trigger{
     position:relative; display:flex; align-items:center; justify-content:center;
-    font-size:1.4rem; width:var(--tap-min); height:var(--tap-min); border-radius:50%; border:none; cursor:pointer; flex-shrink:0;
+    font-size:3.4rem; width:1em; height:1em; border-radius:50%; border:none; cursor:pointer; flex-shrink:0;
     background:rgba(255,255,255,.14); backdrop-filter:blur(20px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(20px) saturate(120%) brightness(1.06);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 4px 14px rgba(0,0,0,.28); color:#fff;
   }
+  #app[data-view="calendar"] .timer-trigger{ font-size:5.6vmin; }
   .timer-trigger:active{ transform:scale(.92); }
-  .timer-trigger svg{ width:.48em; height:.48em; display:block; }
-  .timer-trigger .ttt{ display:none; font-size:.26em; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.01em; }
+  .timer-trigger svg{ width:.46em; height:.46em; display:block; }
+  .timer-trigger .ttt{ display:none; font-size:.24em; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.01em; }
   .timer-trigger.is-active svg{ display:none; }
   .timer-trigger.is-active .ttt{ display:block; }
   /* Progress ring — a conic-gradient sweep masked down to a thin band
@@ -755,7 +760,7 @@
         <div class="hero-clock-toprow">
           <span class="clock js-clock" id="hdr-clock">--:--</span>
           <button class="timer-trigger" id="timer-trigger-hdr" aria-label="Timer">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6"/><path d="M12 5v2.5"/><circle cx="12" cy="14" r="8"/></svg>
             <span class="ttt"></span>
           </button>
         </div>
@@ -808,7 +813,7 @@
               <div class="hero-clock-toprow">
                 <span class="clock js-clock" id="mside-clock">--:--</span>
                 <button class="timer-trigger" id="timer-trigger-mside" aria-label="Timer">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6"/><path d="M12 5v2.5"/><circle cx="12" cy="14" r="8"/></svg>
                   <span class="ttt"></span>
                 </button>
               </div>
@@ -1610,6 +1615,7 @@ function formatTimerMs(ms){
 
 function timerAdd(ms){
   if(timerState.done){ // start fresh rather than adding onto a finished timer
+    stopTimerChimeLoop();
     timerState.done = false; timerState.running = false; timerState.paused = false;
     timerState.remainingMs = 0; timerState.pendingMs = 0;
   }
@@ -1620,6 +1626,7 @@ function timerAdd(ms){
 }
 function timerReset(){
   clearInterval(timerState.intervalId);
+  stopTimerChimeLoop();
   Object.assign(timerState, { pendingMs:0, remainingMs:0, running:false, paused:false, endAt:null, intervalId:null, done:false });
   renderTimerAll();
 }
@@ -1650,30 +1657,45 @@ function timerTick(){
   if(remain <= 0){
     timerState.remainingMs = 0; timerState.running = false; timerState.paused = false; timerState.done = true;
     clearInterval(timerState.intervalId); timerState.intervalId = null;
-    playTimerChime();
+    startTimerChimeLoop();
   } else {
     timerState.remainingMs = remain;
   }
   renderTimerAll();
 }
-// Three ascending short tones (no external asset — just oscillators), so
-// finishing reads even if the panel's already closed. Wrapped in try/catch:
-// autoplay can be blocked, and the pulsing button/panel already carries the
-// signal visually either way.
-function playTimerChime(){
+// Kitchen-timer-style "beep beep beep (pause)" on a loop, like a
+// physical timer that keeps going until someone actually silences it —
+// so it repeats until timerReset() (Dismiss/Cancel, or setting a fresh
+// duration from the done screen) calls stopTimerChimeLoop(). No
+// external asset, just oscillators; wrapped in try/catch since autoplay
+// can be blocked — the pulsing button/panel carries the signal
+// visually either way.
+let timerChimeCtx = null, timerChimeIntervalId = null;
+function playBeepGroup(ctx){
+  const now = ctx.currentTime;
+  [0, .18, .36].forEach(t=>{
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'square'; osc.frequency.value = 1046.5;
+    gain.gain.setValueAtTime(0, now+t);
+    gain.gain.linearRampToValueAtTime(.16, now+t+.01);
+    gain.gain.setValueAtTime(.16, now+t+.1);
+    gain.gain.exponentialRampToValueAtTime(.001, now+t+.14);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now+t); osc.stop(now+t+.16);
+  });
+}
+function startTimerChimeLoop(){
   try{
+    stopTimerChimeLoop();
     const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    const now = ctx.currentTime;
-    [[0,880],[.18,880],[.36,1046.5]].forEach(([t,freq])=>{
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      osc.type = 'sine'; osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, now+t);
-      gain.gain.linearRampToValueAtTime(.2, now+t+.02);
-      gain.gain.exponentialRampToValueAtTime(.001, now+t+.32);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(now+t); osc.stop(now+t+.34);
-    });
+    timerChimeCtx = ctx;
+    playBeepGroup(ctx);
+    timerChimeIntervalId = setInterval(()=> playBeepGroup(ctx), 1500);
   }catch(e){}
+}
+function stopTimerChimeLoop(){
+  if(timerChimeIntervalId){ clearInterval(timerChimeIntervalId); timerChimeIntervalId = null; }
+  if(timerChimeCtx){ try{ timerChimeCtx.close(); }catch(e){} timerChimeCtx = null; }
 }
 
 function renderTimerAll(){
