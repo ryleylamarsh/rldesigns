@@ -2194,6 +2194,14 @@ function openFlipPanel(panel, scrim, trigger, getFinalPos, borderRadius){
   panel.style.top = startRect.top+'px'; panel.style.left = startRect.left+'px';
   panel.style.width = startRect.width+'px'; panel.style.height = startRect.height+'px';
   panel.style.borderRadius = '50%';
+  // Suppressed for the duration of the grow animation — the panel's
+  // real content is already laid out at its full natural size while
+  // the box itself is still animating up from the trigger's small
+  // starting size, so .modal's own overflow-y:auto (there for
+  // genuinely long content once at rest) would otherwise flash a
+  // scrollbar for the ~400ms it takes height to catch up to the
+  // content. Restored once the height transition actually finishes.
+  panel.style.overflow = 'hidden';
   void panel.offsetWidth; // force layout so the transition below actually animates
   requestAnimationFrame(()=>{
     panel.style.transition = 'top .4s cubic-bezier(.22,.9,.32,1), left .4s cubic-bezier(.22,.9,.32,1), width .4s cubic-bezier(.22,.9,.32,1), height .4s cubic-bezier(.22,.9,.32,1), border-radius .4s cubic-bezier(.22,.9,.32,1), opacity .32s ease';
@@ -2201,10 +2209,16 @@ function openFlipPanel(panel, scrim, trigger, getFinalPos, borderRadius){
     panel.style.width = naturalW+'px'; panel.style.height = naturalH+'px';
     panel.style.borderRadius = borderRadius; panel.style.opacity = '1';
   });
+  const restoreOverflow = ()=>{ panel.style.overflow = ''; };
+  panel.addEventListener('transitionend', function onEnd(e){
+    if(e.propertyName==='height'){ panel.removeEventListener('transitionend', onEnd); restoreOverflow(); }
+  });
+  setTimeout(restoreOverflow, 420);
 }
 function closeFlipPanel(panel, scrim, trigger){
   if(panel.hidden) return;
   const rect = trigger.getBoundingClientRect();
+  panel.style.overflow = 'hidden'; // same reasoning as openFlipPanel, in reverse
   panel.style.transition = 'top .32s cubic-bezier(.4,0,.2,1), left .32s cubic-bezier(.4,0,.2,1), width .32s cubic-bezier(.4,0,.2,1), height .32s cubic-bezier(.4,0,.2,1), border-radius .32s cubic-bezier(.4,0,.2,1), opacity .26s ease';
   panel.style.top = rect.top+'px'; panel.style.left = rect.left+'px';
   panel.style.width = rect.width+'px'; panel.style.height = rect.height+'px';
@@ -2223,7 +2237,7 @@ function closeFlipPanel(panel, scrim, trigger){
   const cleanup = ()=>{
     panel.hidden = true;
     panel.style.transition = ''; panel.style.position = ''; panel.style.top = ''; panel.style.left = '';
-    panel.style.width = ''; panel.style.height = ''; panel.style.borderRadius = ''; panel.style.opacity = '';
+    panel.style.width = ''; panel.style.height = ''; panel.style.borderRadius = ''; panel.style.opacity = ''; panel.style.overflow = '';
     if(scrim) scrim.classList.remove('is-open');
   };
   panel.addEventListener('transitionend', cleanup, {once:true});
