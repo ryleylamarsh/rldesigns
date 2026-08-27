@@ -709,8 +709,13 @@
   .avatar-pick.is-selected{ border-color:var(--ink); }
   .photo-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(6rem,1fr)); gap:.6rem; }
   .photo-thumb{ position:relative; aspect-ratio:1/1; border-radius:var(--radius-sm); overflow:hidden; background:var(--bg); }
-  .photo-thumb img{ width:100%; height:100%; object-fit:cover; }
+  .photo-thumb img, .photo-thumb video{ width:100%; height:100%; object-fit:cover; }
   .photo-thumb .rm{ position:absolute; top:.2rem; right:.2rem; width:2rem; height:2rem; border-radius:50%; background:rgba(11,11,11,.55); color:#fff; border:none; }
+  .photo-thumb-play{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:1.4rem; text-shadow:0 1px 4px rgba(0,0,0,.6); pointer-events:none;
+    background:rgba(0,0,0,.15);
+  }
   .upload-tile{ display:flex; align-items:center; justify-content:center; border:2px dashed var(--baseline); border-radius:var(--radius-sm); aspect-ratio:1/1; color:var(--ink-muted); font-size:1.6rem; cursor:pointer; }
 
   /* Family member photo — upload + crop, rather than a raw URL paste,
@@ -928,8 +933,8 @@
     transition: opacity 1.6s ease;
   }
   #screensaver.is-active{ opacity:1; pointer-events:auto; }
-  #screensaver img{ width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity 1.6s ease; position:absolute; inset:0; }
-  #screensaver img.is-shown{ opacity:1; }
+  #screensaver img, #screensaver video{ width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity 1.6s ease; position:absolute; inset:0; }
+  #screensaver img.is-shown, #screensaver video.is-shown{ opacity:1; }
   #screensaver .ss-clock{
     position:absolute; left:2rem; bottom:2rem; color:#fff; font-weight:700; text-shadow:0 2px 10px rgba(0,0,0,.6);
   }
@@ -1106,8 +1111,9 @@
 
       <div class="settings-section">
         <h2>Screensaver photos</h2>
+        <p class="settings-hint">Photos and short videos both work — a video plays muted and looped for its slot in the rotation.</p>
         <div class="photo-grid" id="photo-grid"></div>
-        <input type="file" id="photo-upload-input" accept="image/*" multiple class="visually-hidden">
+        <input type="file" id="photo-upload-input" accept="image/*,video/*" multiple class="visually-hidden">
       </div>
 
       <div class="settings-section">
@@ -1609,7 +1615,8 @@ function supabaseDb(sb){
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name}`;
       const { error } = await sb.storage.from('screensaver-photos').upload(path, file);
       if(error){ console.warn(error); return; }
-      await sb.from('screensaver_photos').insert({ storage_path: path, sort_order: sortOrder });
+      const media_type = file.type.startsWith('video/') ? 'video' : 'photo';
+      await sb.from('screensaver_photos').insert({ storage_path: path, sort_order: sortOrder, media_type });
     },
     async deletePhoto(photo){
       await sb.storage.from('screensaver-photos').remove([photo.storage_path]);
@@ -1794,8 +1801,17 @@ function localDb(){
 
     async listPhotos(){ return data.photos.slice().sort((a,b)=>a.sort_order-b.sort_order); },
     async addPhotoFile(file, sortOrder){
+      // The sandbox has no real file storage — everything's base64'd
+      // straight into localStorage, which caps out around 5-10MB total.
+      // Fine for photos; a video that size (or larger) would silently
+      // fail to persist past this session (see persist()'s catch), so
+      // warn up front rather than let it look like it worked.
+      if(file.type.startsWith('video/') && file.size > 8*1024*1024){
+        alert("This video is " + (file.size/1024/1024).toFixed(1) + "MB — too big for the local sandbox's storage (~8MB). It'll play for this session but won't survive a reload here. A real deployment (Supabase Storage) has no such limit.");
+      }
       const dataUrl = await new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
-      data.photos.push({ id:uid(), storage_path:dataUrl, sort_order:sortOrder });
+      const media_type = file.type.startsWith('video/') ? 'video' : 'photo';
+      data.photos.push({ id:uid(), storage_path:dataUrl, sort_order:sortOrder, media_type });
       persist(); notify('photos');
     },
     async deletePhoto(photo){ data.photos = data.photos.filter(p=>p.id!==photo.id); persist(); notify('photos'); },
@@ -3600,7 +3616,11 @@ function renderPhotoSettings(){
   state.photos.forEach(p=>{
     const thumb = document.createElement('div');
     thumb.className = 'photo-thumb';
-    thumb.innerHTML = `<img src="${db.getPhotoUrl(p)}" loading="lazy"><button class="rm" data-id="${p.id}">✕</button>`;
+    const isVideo = p.media_type === 'video';
+    const media = isVideo
+      ? `<video src="${db.getPhotoUrl(p)}" muted preload="metadata"></video><span class="photo-thumb-play">▶</span>`
+      : `<img src="${db.getPhotoUrl(p)}" loading="lazy">`;
+    thumb.innerHTML = `${media}<button class="rm" data-id="${p.id}">✕</button>`;
     thumb.querySelector('.rm').addEventListener('click', async ()=>{
       await db.deletePhoto(p);
       loadPhotos();
@@ -3912,7 +3932,7 @@ function startScreensaver(){
   const ss = el('screensaver');
   ss.classList.add('is-active');
   el('ss-empty').style.display = state.photos.length ? 'none' : 'flex';
-  ss.querySelectorAll('img').forEach(i=>i.remove());
+  ss.querySelectorAll('img, video').forEach(i=>i.remove());
   renderScreensaverUpcoming();
   if(!state.photos.length) return;
   ssIndex = 0;
@@ -3972,17 +3992,23 @@ function showScreensaverPhoto(){
   const ss = el('screensaver');
   const photo = state.photos[ssIndex];
   if(!photo) return;
-  const img = document.createElement('img');
-  img.src = db.getPhotoUrl(photo);
-  img.addEventListener('load', ()=>{
-    ss.querySelectorAll('img').forEach(i=>i.remove());
-    ss.insertBefore(img, ss.firstChild);
-    requestAnimationFrame(()=> img.classList.add('is-shown'));
-  });
+  const isVideo = photo.media_type === 'video';
+  const media = document.createElement(isVideo ? 'video' : 'img');
+  if(isVideo){
+    media.muted = true; media.loop = true; media.playsInline = true; media.autoplay = true;
+  }
+  media.src = db.getPhotoUrl(photo);
+  media.addEventListener(isVideo ? 'loadeddata' : 'load', ()=>{
+    ss.querySelectorAll('img, video').forEach(i=>i.remove());
+    ss.insertBefore(media, ss.firstChild);
+    requestAnimationFrame(()=> media.classList.add('is-shown'));
+    if(isVideo) media.play().catch(()=>{});
+  }, { once:true });
 }
 function wakeScreensaver(){
   clearInterval(ssInterval);
   el('screensaver').classList.remove('is-active');
+  el('screensaver').querySelectorAll('video').forEach(v=> v.pause());
 }
 function renderScreensaverClock(now){
   el('ss-time').textContent = fmtTime(now);
