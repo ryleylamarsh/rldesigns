@@ -302,12 +302,13 @@
      actually counting down. */
   .timer-trigger::before{
     content:''; position:absolute; inset:-.08em; border-radius:50%; pointer-events:none; padding:.045em;
-    background:conic-gradient(#fff var(--timer-progress,0deg), rgba(255,255,255,.22) 0deg);
+    background:conic-gradient(var(--timer-ring-color,#fff) var(--timer-progress,0deg), rgba(255,255,255,.22) 0deg);
+    transition:opacity .25s ease, background .3s linear;
     mask-image:linear-gradient(#000 0 0), linear-gradient(#000 0 0);
     mask-clip:content-box, border-box; mask-composite:exclude;
     -webkit-mask-image:linear-gradient(#000 0 0), linear-gradient(#000 0 0);
     -webkit-mask-clip:content-box, border-box; -webkit-mask-composite:xor;
-    opacity:0; transition:opacity .25s ease;
+    opacity:0;
   }
   .timer-trigger.is-active::before{ opacity:1; }
   .timer-trigger.is-done{ animation:timer-pulse 1s ease-in-out infinite; }
@@ -653,6 +654,15 @@
     min-height:var(--tap-min); border-radius:var(--radius-sm); border:2px solid var(--gridline); background:var(--surface-2);
     color:var(--ink); padding:0 .8rem; width:100%;
   }
+  /* Button standing in for input[type=date]/[type=time] — the native
+     pickers those render are fussy to hit accurately on a touchscreen
+     (tiny per-segment steppers, a small popup calendar). Opens one of
+     the custom picker panels below instead — see openDatePicker()/
+     openTimePicker(). */
+  .picker-field{
+    min-height:var(--tap-min); border-radius:var(--radius-sm); border:2px solid var(--gridline); background:var(--surface-2);
+    color:var(--ink); padding:0 .8rem; width:100%; text-align:left; font:inherit; font-weight:600; cursor:pointer;
+  }
   .field{ display:flex; flex-direction:column; gap:.35rem; margin-bottom:.9rem; }
   .field label{ font-size:.85rem; font-weight:700; color:var(--ink-secondary); }
   .color-swatches{ display:flex; flex-wrap:wrap; gap:.5rem; }
@@ -705,8 +715,8 @@
   }
   #modal-event-edit .modal h2{ color:#fff; }
   #modal-event-edit .field label{ color:rgba(255,255,255,.75); }
-  #modal-event-edit input[type=text], #modal-event-edit input[type=date], #modal-event-edit input[type=time]{
-    background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.3); color:#fff; color-scheme:dark;
+  #modal-event-edit input[type=text], #modal-event-edit .picker-field{
+    background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.3); color:#fff;
   }
   #modal-event-edit input::placeholder{ color:rgba(255,255,255,.5); }
   #modal-event-edit .toggle-group button{ background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.3); color:#fff; }
@@ -997,13 +1007,13 @@
     </div>
     <div class="field">
       <label for="event-date-input">Date</label>
-      <input type="date" id="event-date-input">
+      <button type="button" class="picker-field" id="event-date-input" data-value=""></button>
     </div>
     <div class="field" id="event-time-fields">
       <label>Time</label>
       <div style="display:flex; gap:.6rem;">
-        <input type="time" id="event-start-input" style="flex:1">
-        <input type="time" id="event-end-input" style="flex:1">
+        <button type="button" class="picker-field" id="event-start-input" data-value="" style="flex:1"></button>
+        <button type="button" class="picker-field" id="event-end-input" data-value="" style="flex:1"></button>
       </div>
     </div>
     <div class="field">
@@ -1103,6 +1113,33 @@
       <button class="btn" id="confirm-cancel-btn">Cancel</button>
       <button class="btn danger" id="confirm-ok-btn">Delete</button>
     </div>
+  </div>
+</div>
+
+<div id="picker-scrim"></div>
+<div class="date-picker-panel" id="date-picker-panel" hidden>
+  <div class="picker-head">
+    <button class="glass-icon-btn" id="dp-prev" aria-label="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <span class="picker-head-label" id="dp-month-label"></span>
+    <button class="glass-icon-btn" id="dp-next" aria-label="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+  </div>
+  <div class="picker-dow-row"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+  <div class="picker-day-grid" id="dp-grid"></div>
+</div>
+
+<div class="time-picker-panel" id="time-picker-panel" hidden>
+  <div class="tp-summary" id="tp-summary">9:00 AM</div>
+  <div class="tp-section-label">Hour</div>
+  <div class="tp-grid tp-grid-hour" id="tp-hour-grid"></div>
+  <div class="tp-section-label">Minute</div>
+  <div class="tp-grid tp-grid-min" id="tp-min-grid"></div>
+  <div class="tp-ampm-row" id="tp-ampm-row">
+    <button data-val="AM">AM</button>
+    <button data-val="PM">PM</button>
+  </div>
+  <div class="modal-actions">
+    <button class="btn" id="tp-cancel-btn">Cancel</button>
+    <button class="btn primary" id="tp-done-btn">Done</button>
   </div>
 </div>
 
@@ -1702,14 +1739,27 @@ function renderTimerAll(){
   renderTimerButtons();
   if(!el('timer-panel').hidden) renderTimerPanel();
 }
+// Green -> amber -> red as the fraction goes 0 (just started) -> 1
+// (about to finish), so the ring itself signals "getting close" rather
+// than staying a flat white sweep the whole way through.
+function timerRingColor(frac){
+  const stops = [[74,222,128],[250,204,21],[255,90,90]]; // green, amber, red
+  const scaled = Math.min(1, Math.max(0, frac)) * (stops.length-1);
+  const i = Math.min(stops.length-2, Math.floor(scaled));
+  const t = scaled - i;
+  const c = stops[i].map((v,k)=> Math.round(v + (stops[i+1][k]-v)*t));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
 function renderTimerButtons(){
-  const progressDeg = (timerState.running && timerState.pendingMs>0)
-    ? Math.min(360, Math.max(0, (1 - timerState.remainingMs/timerState.pendingMs) * 360)) : 0;
+  const frac = (timerState.running && timerState.pendingMs>0)
+    ? Math.min(1, Math.max(0, 1 - timerState.remainingMs/timerState.pendingMs)) : 0;
+  const progressDeg = frac*360;
   [el('timer-trigger-hdr'), el('timer-trigger-mside')].forEach(btn=>{
     if(!btn) return;
     btn.classList.toggle('is-active', timerState.running);
     btn.classList.toggle('is-done', timerState.done);
     btn.style.setProperty('--timer-progress', progressDeg+'deg');
+    btn.style.setProperty('--timer-ring-color', timerRingColor(frac));
     const ttt = btn.querySelector('.ttt');
     if(ttt) ttt.textContent = timerState.running ? formatTimerMs(timerState.remainingMs) : '';
   });
@@ -1788,11 +1838,22 @@ function closeFlipPanel(panel, scrim, trigger){
   panel.style.top = rect.top+'px'; panel.style.left = rect.left+'px';
   panel.style.width = rect.width+'px'; panel.style.height = rect.height+'px';
   panel.style.borderRadius = '50%'; panel.style.opacity = '0';
-  if(scrim) scrim.classList.remove('is-open');
+  // Deliberately NOT removing the scrim's is-open class yet: for panels
+  // where .modal is a DOM child of the scrim (the event panel — unlike
+  // the timer, where #timer-scrim/#timer-panel are siblings), hiding the
+  // scrim immediately would set it display:none, which collapses the
+  // child .modal to zero size right away regardless of its own
+  // position:fixed — display:none on an ancestor removes the whole
+  // subtree from rendering, position:fixed doesn't escape that. Leaving
+  // the scrim visible (but the panel now click-through-invisible via its
+  // own fading opacity) lets the close animation actually play, and
+  // conveniently also keeps outside clicks blocked for as long as
+  // something is still visibly animating shut.
   const cleanup = ()=>{
     panel.hidden = true;
     panel.style.transition = ''; panel.style.position = ''; panel.style.top = ''; panel.style.left = '';
     panel.style.width = ''; panel.style.height = ''; panel.style.borderRadius = ''; panel.style.opacity = '';
+    if(scrim) scrim.classList.remove('is-open');
   };
   panel.addEventListener('transitionend', cleanup, {once:true});
   setTimeout(cleanup, 400);
