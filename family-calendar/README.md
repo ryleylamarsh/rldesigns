@@ -9,7 +9,7 @@ build spec for the full design rationale; this README just covers setup.
 ```
 index.html                       the entire app (portrait + landscape, all 4 screens)
 manifest.json + icons/           PWA manifest so it can "Add to Home Screen" full-screen
-supabase/migrations/0001_init.sql   schema + RLS for a new Supabase project
+supabase/migrations/                schema + RLS for a new Supabase project (run in order)
 supabase/functions/sync-ics/     Edge Function that syncs Google Calendar → events table
 ```
 
@@ -47,11 +47,15 @@ This repo's session couldn't provision one automatically — the account's org
 was already at its 2-project free-tier cap — so do this manually:
 
 1. https://supabase.com/dashboard → New project.
-2. Open the SQL editor and run `supabase/migrations/0001_init.sql` once.
-   It creates all tables, locks `ics_sources` down to the service role only,
-   adds the `ics_sources_status` view + `upsert_ics_source`/`delete_ics_source`
-   RPCs the Settings screen uses, creates the `screensaver-photos` storage
-   bucket, and adds every table to the `supabase_realtime` publication.
+2. Open the SQL editor and run every file in `supabase/migrations/`, in
+   filename order (`0001_init.sql`, then `0002_member_photo.sql`, ...), each
+   once. `0001_init.sql` creates all tables, locks `ics_sources` down to the
+   service role only, adds the `ics_sources_status` view +
+   `upsert_ics_source`/`delete_ics_source` RPCs the Settings screen uses,
+   creates the `screensaver-photos` storage bucket, and adds every table to
+   the `supabase_realtime` publication. Later files are additive schema
+   changes — safe to run even if you're not sure whether one's already
+   applied (`add column if not exists`, etc.).
 3. Settings → API → copy the **Project URL** and **anon/publishable key**
    into the two `SUPABASE_URL` / `SUPABASE_ANON_KEY` constants near the top
    of `index.html`'s `<script>` block.

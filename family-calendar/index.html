@@ -229,7 +229,7 @@
   /* Family filter — small glass avatar chips, lives in the header toolbar */
   #family-filter{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
   .filter-chip{
-    display:flex; align-items:center; justify-content:center; min-width:var(--tap-min); height:var(--tap-min); padding:.2rem;
+    position:relative; display:flex; align-items:center; justify-content:center; min-width:var(--tap-min); height:var(--tap-min); padding:.2rem;
     border-radius:999px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.12);
     backdrop-filter:blur(20px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(20px) saturate(120%) brightness(1.06);
     cursor:pointer; opacity:1; transition: opacity .2s ease, transform .15s ease;
@@ -238,6 +238,17 @@
   .filter-chip:active{ transform:scale(.94); }
   .filter-chip .avatar{ width:1.9rem; height:1.9rem; font-size:.72rem; }
   .filter-chip .fname{ display:none; }
+  /* Photo avatar: the member's color moves from filling the whole
+     circle to a small corner dot instead — a wider ring than fill
+     matches how iOS badges a photo avatar (status dot, not a tint).
+     Only chips with a photo get the dot; the colored-initials fallback
+     already conveys the color by itself. */
+  .filter-chip .avatar.has-photo{ background-size:cover; background-position:center; color:transparent; font-size:0; }
+  .filter-chip .member-dot{
+    display:none; position:absolute; right:.05rem; bottom:.05rem; width:.65rem; height:.65rem;
+    border-radius:50%; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.35);
+  }
+  .filter-chip .avatar.has-photo ~ .member-dot{ display:block; }
 
   .avatar{
     width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
@@ -1031,6 +1042,11 @@
     <div class="field">
       <label for="member-initials-input">Initials (optional)</label>
       <input type="text" id="member-initials-input" maxlength="2">
+    </div>
+    <div class="field">
+      <label for="member-photo-input">Photo URL (optional)</label>
+      <input type="text" id="member-photo-input" placeholder="https://...">
+      <p class="modal-sub" style="margin:.3rem 0 0">Shown in the calendar's family filter instead of the colored initials — their color still shows as a small dot in the corner.</p>
     </div>
     <div class="field">
       <label>Color</label>
@@ -1864,7 +1880,15 @@ function renderFamilyFilter(){
   state.members.forEach(m=>{
     const chip = document.createElement('button');
     chip.className = 'filter-chip' + (state.activeFilter.size && !state.activeFilter.has(m.id) ? ' is-off':'');
-    chip.innerHTML = `<span class="avatar" style="background:${colorFor(m.color_hex)}">${escapeHtml((m.initials||m.name[0]||'?').slice(0,2))}</span><span class="fname">${escapeHtml(m.name)}</span>`;
+    const hasPhoto = !!m.photo_url;
+    // Single-quoted url() — this whole style string lands inside an
+    // innerHTML-parsed style="..." attribute (double-quoted), so a
+    // double-quoted url() here would prematurely close that attribute
+    // at the photo URL's first character.
+    const safePhotoUrl = hasPhoto ? m.photo_url.replace(/"/g,'%22').replace(/'/g,'%27') : '';
+    const avatarStyle = hasPhoto ? `background-image:url('${safePhotoUrl}')` : `background:${colorFor(m.color_hex)}`;
+    const initials = hasPhoto ? '' : escapeHtml((m.initials||m.name[0]||'?').slice(0,2));
+    chip.innerHTML = `<span class="avatar${hasPhoto?' has-photo':''}" style="${avatarStyle}">${initials}</span><span class="member-dot" style="background:${colorFor(m.color_hex)}"></span><span class="fname">${escapeHtml(m.name)}</span>`;
     chip.addEventListener('click', ()=>{
       if(state.activeFilter.has(m.id)) state.activeFilter.delete(m.id);
       else state.activeFilter.add(m.id);
@@ -2651,6 +2675,7 @@ function openMemberModal(m){
   el('member-modal-title').textContent = m ? 'Edit family member' : 'Add family member';
   el('member-name-input').value = m ? m.name : '';
   el('member-initials-input').value = m ? (m.initials||'') : '';
+  el('member-photo-input').value = m ? (m.photo_url||'') : '';
   el('member-delete-btn').style.display = m ? '' : 'none';
   const row = el('member-color-row'); row.innerHTML='';
   const usedColors = new Set(state.members.filter(x=>!m || x.id!==m.id).map(x=>x.color_hex));
@@ -2671,8 +2696,9 @@ el('member-save-btn').addEventListener('click', async ()=>{
   const name = el('member-name-input').value.trim();
   if(!name) return;
   const initials = el('member-initials-input').value.trim();
+  const photo_url = el('member-photo-input').value.trim();
   const color = el('member-color-row').querySelector('.is-selected').dataset.hex;
-  const payload = { name, initials: initials||name.slice(0,2).toUpperCase(), color_hex: color };
+  const payload = { name, initials: initials||name.slice(0,2).toUpperCase(), color_hex: color, photo_url: photo_url||null };
   if(editingMemberId) await db.updateMember(editingMemberId, payload);
   else await db.addMember({ ...payload, sort_order: state.members.length });
   el('modal-member').classList.remove('is-open');
