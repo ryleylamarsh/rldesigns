@@ -335,6 +335,23 @@
     color:#fff; overflow:hidden;
   }
   .timer-panel[hidden]{ display:none; }
+  /* Same progress ring as the round trigger button (see .timer-trigger
+     ::before above), wrapped around the panel's own rounded-rectangle
+     edge instead of a circle — drawn just inside the border (inset:0,
+     not a negative inset like the button's) since .timer-panel clips
+     via overflow:hidden. Driven by the same --timer-progress/
+     --timer-ring-color vars, set alongside the buttons' in
+     renderTimerButtons(). */
+  .timer-panel::before{
+    content:''; position:absolute; inset:0; border-radius:1.6rem; pointer-events:none; padding:3px;
+    background:conic-gradient(var(--timer-ring-color,#fff) var(--timer-progress,0deg), rgba(255,255,255,.22) 0deg);
+    mask-image:linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+    mask-clip:content-box, border-box; mask-composite:exclude;
+    -webkit-mask-image:linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+    -webkit-mask-clip:content-box, border-box; -webkit-mask-composite:xor;
+    opacity:0; transition:opacity .25s ease, background .3s linear;
+  }
+  .timer-panel[data-state="running"]::before{ opacity:1; }
   .timer-panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.9rem; }
   .timer-panel-title{ font-weight:800; font-size:1.05rem; }
   .timer-panel-close{
@@ -1763,6 +1780,11 @@ function renderTimerButtons(){
     const ttt = btn.querySelector('.ttt');
     if(ttt) ttt.textContent = timerState.running ? formatTimerMs(timerState.remainingMs) : '';
   });
+  // Same ring, same vars, around the panel's own edge — see
+  // .timer-panel::before — active whenever data-state="running".
+  const panel = el('timer-panel');
+  panel.style.setProperty('--timer-progress', progressDeg+'deg');
+  panel.style.setProperty('--timer-ring-color', timerRingColor(frac));
 }
 function renderTimerPanel(){
   const panel = el('timer-panel'), secondaryBtn = el('timer-secondary-btn'), primaryBtn = el('timer-primary-btn');
