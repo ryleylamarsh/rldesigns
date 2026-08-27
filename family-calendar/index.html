@@ -475,6 +475,7 @@
   }
   .event-row .ername{ font-size:.8rem; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
   .event-row .ertime{ font-size:.7rem; color:var(--ink-secondary); font-weight:600; }
+  .er-recur-icon{ width:.68rem; height:.68rem; vertical-align:-1px; margin-right:.2rem; opacity:.65; flex-shrink:0; }
   .event-row[data-synced="0"]{ touch-action:none; }
   .event-row.is-dragging{ opacity:.3; }
 
@@ -753,17 +754,39 @@
      on translucency. */
   #picker-scrim{ position:fixed; inset:0; z-index:65; display:none; }
   #picker-scrim.is-open{ display:block; }
-  .date-picker-panel, .time-picker-panel{
+  .date-picker-panel, .time-picker-panel, .recur-picker-panel{
     position:fixed; z-index:66; top:50%; left:50%; width:min(22rem, 88vw);
     background:#1b1930; border:1px solid rgba(255,255,255,.16); border-radius:1.4rem;
     padding:1.1rem 1.2rem 1.3rem; box-shadow:0 20px 60px rgba(0,0,0,.5); color:#fff;
     transform:translate(-50%,-50%) scale(.92); opacity:0; pointer-events:none;
     transition:transform .22s cubic-bezier(.22,.9,.32,1), opacity .18s ease;
+    max-height:80vh; overflow-y:auto;
   }
-  .date-picker-panel.is-open, .time-picker-panel.is-open{
+  .date-picker-panel.is-open, .time-picker-panel.is-open, .recur-picker-panel.is-open{
     transform:translate(-50%,-50%) scale(1); opacity:1; pointer-events:auto;
   }
-  .date-picker-panel[hidden], .time-picker-panel[hidden]{ display:none; }
+  .date-picker-panel[hidden], .time-picker-panel[hidden], .recur-picker-panel[hidden]{ display:none; }
+  /* "Repeat" field button, matching the other .picker-field-style row
+     fields — swaps between the "no repeat" (circle-arrows + slash) and
+     "repeating" (same arrows, no slash) icon based on state, same idea
+     as the timer trigger swapping its icon for live countdown text. */
+  .recur-field{
+    display:flex; align-items:center; gap:.6rem; min-height:var(--tap-min); border-radius:var(--radius-sm);
+    border:2px solid rgba(255,255,255,.3); background:rgba(255,255,255,.14); color:#fff;
+    padding:0 .8rem; width:100%; font:inherit; font-weight:600; cursor:pointer;
+  }
+  .recur-field svg{ width:1.1rem; height:1.1rem; flex-shrink:0; }
+  .recur-field .recur-on-icon{ display:none; }
+  .recur-field.is-on .recur-off-icon{ display:none; }
+  .recur-field.is-on .recur-on-icon{ display:block; }
+  #recur-options{ display:flex; flex-direction:column; }
+  #recur-options button{
+    display:flex; align-items:center; gap:.7rem; border:none; background:none; color:#fff;
+    font-size:1rem; font-weight:600; text-align:left; padding:.85rem .3rem; cursor:pointer;
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  #recur-options button:last-child{ border-bottom:none; }
+  #recur-options button .recur-check{ width:1.1rem; flex-shrink:0; color:#fff; }
   .picker-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.7rem; }
   .picker-head-label{ font-weight:800; font-size:1.05rem; }
   .picker-dow-row{ display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:.3rem; }
@@ -1085,6 +1108,14 @@
       </div>
     </div>
     <div class="field">
+      <label>Repeat</label>
+      <button type="button" class="recur-field" id="event-recurrence-input" data-value="none">
+        <svg class="recur-off-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+        <svg class="recur-on-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <span id="event-recurrence-label">Repeat Off</span>
+      </button>
+    </div>
+    <div class="field">
       <label for="event-location-input">Location (optional)</label>
       <input type="text" id="event-location-input" maxlength="120">
     </div>
@@ -1211,6 +1242,11 @@
   </div>
 </div>
 
+<div class="recur-picker-panel" id="recur-picker-panel" hidden>
+  <div class="picker-head-label" style="margin-bottom:.6rem;">Repeat</div>
+  <div id="recur-options"></div>
+</div>
+
 <div id="timer-scrim"></div>
 <div class="timer-panel" id="timer-panel" hidden>
   <div class="timer-panel-head">
@@ -1334,7 +1370,13 @@ function supabaseDb(sb){
     async updateMember(id,payload){ await sb.from('family_members').update(payload).eq('id',id); },
     async deleteMember(id){ await sb.from('family_members').delete().eq('id',id); },
 
-    async listEvents(startISO,endISO){ return (await unwrap(sb.from('events').select('*').gte('start_at',startISO).lt('start_at',endISO).order('start_at',{ascending:true}))) || []; },
+    async listEvents(startISO,endISO){
+      const [ranged, recurring] = await Promise.all([
+        unwrap(sb.from('events').select('*').eq('recurrence','none').gte('start_at',startISO).lt('start_at',endISO).order('start_at',{ascending:true})),
+        unwrap(sb.from('events').select('*').neq('recurrence','none')),
+      ]);
+      return [...(ranged||[]), ...expandRecurringEvents(recurring||[], startISO, endISO)].sort((a,b)=> a.start_at<b.start_at?-1:1);
+    },
     async addEvent(payload){ await sb.from('events').insert(payload); },
     async updateEvent(id,patch){ await sb.from('events').update(patch).eq('id',id); },
     async deleteEvent(id){ await sb.from('events').delete().eq('id',id); },
@@ -1507,8 +1549,12 @@ function localDb(){
       persist(); notify('family_members');
     },
 
-    async listEvents(startISO,endISO){ return data.events.filter(e=> e.start_at>=startISO && e.start_at<endISO).sort((a,b)=> a.start_at<b.start_at?-1:1); },
-    async addEvent(payload){ data.events.push({ id:uid(), google_event_id:null, last_synced_at:new Date().toISOString(), ...payload }); persist(); notify('events'); },
+    async listEvents(startISO,endISO){
+      const ranged = data.events.filter(e=> (e.recurrence||'none')==='none' && e.start_at>=startISO && e.start_at<endISO);
+      const recurring = data.events.filter(e=> (e.recurrence||'none')!=='none');
+      return [...ranged, ...expandRecurringEvents(recurring, startISO, endISO)].sort((a,b)=> a.start_at<b.start_at?-1:1);
+    },
+    async addEvent(payload){ data.events.push({ id:uid(), google_event_id:null, last_synced_at:new Date().toISOString(), recurrence:'none', ...payload }); persist(); notify('events'); },
     async updateEvent(id,patch){ const e=data.events.find(x=>x.id===id); if(e) Object.assign(e,patch); persist(); notify('events'); },
     async deleteEvent(id){ data.events = data.events.filter(e=>e.id!==id); persist(); notify('events'); },
 
@@ -1636,6 +1682,69 @@ function addDays(d,n){ const c=new Date(d); c.setDate(c.getDate()+n); return c; 
 function sameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
 function fmtTime(d){ return d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* =========================================================================
+   Recurring events — expanded client-side at query time rather than
+   materialized as individual rows. A recurring event keeps exactly one
+   stored row (the "anchor" occurrence, at its own start_at); which
+   weekday/day-of-month/month+day a weekly/monthly/yearly rule follows
+   comes from that anchor date directly, not a separate field. Both
+   listEvents() implementations call expandRecurringEvents() with every
+   row that has recurrence!=='none', regardless of that row's own date, so
+   a series anchored months ago still produces occurrences in whatever
+   range is being viewed now.
+   ========================================================================= */
+function matchesRecurrence(recurrence, anchor, day){
+  switch(recurrence){
+    case 'daily': return true;
+    case 'weekdays': return day.getDay()>=1 && day.getDay()<=5;
+    case 'weekly': return day.getDay()===anchor.getDay();
+    case 'monthly': return day.getDate()===anchor.getDate();
+    case 'yearly': return day.getDate()===anchor.getDate() && day.getMonth()===anchor.getMonth();
+    default: return false;
+  }
+}
+function expandRecurringEvents(rows, startISO, endISO){
+  const rangeStart = new Date(startISO), rangeEnd = new Date(endISO);
+  const out = [];
+  rows.forEach(ev=>{
+    const anchor = new Date(ev.start_at);
+    const anchorEnd = ev.end_at ? new Date(ev.end_at) : null;
+    const durationMs = anchorEnd ? anchorEnd-anchor : 0;
+    const seriesStart = new Date(anchor); seriesStart.setHours(0,0,0,0);
+    // Day-by-day walk through the queried range (at most ~6 weeks for the
+    // month view) — simpler and plenty fast at this scale than closed-form
+    // date math for each recurrence type.
+    for(let d=new Date(Math.max(seriesStart, new Date(rangeStart.getFullYear(),rangeStart.getMonth(),rangeStart.getDate()))); d<rangeEnd; d.setDate(d.getDate()+1)){
+      if(!matchesRecurrence(ev.recurrence, anchor, d)) continue;
+      const occStart = new Date(d);
+      occStart.setHours(anchor.getHours(), anchor.getMinutes(), anchor.getSeconds(), 0);
+      if(occStart<rangeStart || occStart>=rangeEnd) continue;
+      const occEnd = anchorEnd ? new Date(occStart.getTime()+durationMs) : null;
+      out.push({ ...ev, id:`${ev.id}::${localDateStr(occStart)}`, recurrence_source_id:ev.id,
+        start_at:occStart.toISOString(), end_at:occEnd?occEnd.toISOString():null });
+    }
+  });
+  return out;
+}
+// Plain-language options for the recurrence picker, all anchored to
+// whatever date/time is currently set in the event form — matches the
+// pattern from Due (iOS): "Weekly" reads as "Wednesdays 8:18 PM" rather
+// than a generic interval configurator, because the specific day/date is
+// implied by the date already chosen.
+function recurrenceOptions(anchor){
+  const weekday = anchor.toLocaleDateString(undefined,{weekday:'long'});
+  const time = fmtTime(anchor);
+  const ordinal = n=>{ const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };
+  return [
+    { val:'none', label:'Repeat Off' },
+    { val:'daily', label:`Daily ${time}` },
+    { val:'weekdays', label:`Weekdays ${time}` },
+    { val:'weekly', label:`${weekday}s ${time}` },
+    { val:'monthly', label:`${ordinal(anchor.getDate())} each month at ${time}` },
+    { val:'yearly', label:`Every ${anchor.toLocaleDateString(undefined,{month:'short',day:'numeric'})} at ${time}` },
+  ];
+}
 
 /* =========================================================================
    Orientation
@@ -2195,7 +2304,13 @@ function eventRowHtml(e){
   const color = m ? colorFor(m.color_hex) : 'var(--ink-muted)';
   const time = e.all_day ? 'All day' : fmtTime(new Date(e.start_at));
   const synced = e.google_event_id ? 1 : 0;
-  return `<button class="event-row" style="border-left-color:${color}" data-id="${e.id}" data-synced="${synced}"><span class="ername">${escapeHtml(e.title)}</span><span class="ertime">${time}${synced?' · synced':''}</span></button>`;
+  // Recurring occurrences are virtual (see expandRecurringEvents()) and
+  // aren't draggable — see makeEventDraggable()'s dataset.recurring guard
+  // — since dragging one visually looks like moving just that occurrence
+  // but would actually shift the whole series' anchor day/time.
+  const recurring = e.recurrence_source_id ? 1 : 0;
+  const recurIcon = recurring ? `<svg class="er-recur-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>` : '';
+  return `<button class="event-row" style="border-left-color:${color}" data-id="${e.id}" data-synced="${synced}" data-recurring="${recurring}"><span class="ername">${recurIcon}${escapeHtml(e.title)}</span><span class="ertime">${time}${synced?' · synced':''}</span></button>`;
 }
 function bindEventRows(container){
   container.querySelectorAll('.event-row').forEach(row=>{
@@ -2216,7 +2331,7 @@ function bindEventRows(container){
 function makeEventDraggable(gridEl){
   gridEl.addEventListener('pointerdown', (e)=>{
     const card = e.target.closest('.event-row');
-    if(!card || card.dataset.synced==='1') return;
+    if(!card || card.dataset.synced==='1' || card.dataset.recurring==='1') return;
     let moved = false, ghost = null;
     const startX = e.clientX, startY = e.clientY;
     const originRect = card.getBoundingClientRect();
@@ -2425,7 +2540,10 @@ el('ev-edit').addEventListener('click', ()=>{
    ========================================================================= */
 let editingEventId = null;
 function openEventEditModal(event){
-  editingEventId = event ? event.id : null;
+  // A tapped occurrence of a recurring event carries a synthetic id
+  // (`${realId}::${date}`, see expandRecurringEvents()) — edits/deletes
+  // always act on the real underlying series row, not that virtual copy.
+  editingEventId = event ? (event.recurrence_source_id || event.id) : null;
   el('event-edit-title').textContent = event ? 'Edit event' : 'Add event';
   el('event-title-input').value = event ? event.title : '';
   el('event-location-input').value = event ? (event.location||'') : '';
@@ -2456,6 +2574,7 @@ function openEventEditModal(event){
   setPickerFieldTime(el('event-start-input'), `${pad2(start.getHours())}:${pad2(start.getMinutes())}`);
   const end = event && event.end_at ? new Date(event.end_at) : new Date(start.getTime()+60*60000);
   setPickerFieldTime(el('event-end-input'), `${pad2(end.getHours())}:${pad2(end.getMinutes())}`);
+  setRecurrenceField(event ? (event.recurrence||'none') : 'none');
 
   openEventPanel();
 }
@@ -2580,7 +2699,45 @@ el('tp-done-btn').addEventListener('click', ()=>{
   setPickerFieldTime(timePickerField, `${pad2(h24)}:${pad2(m)}`);
   closeTimePicker();
 });
-el('picker-scrim').addEventListener('click', ()=>{ closeDatePicker(); closeTimePicker(); });
+// The "Repeat" sheet reads its options off whatever date/time is
+// currently in the Date/Start fields at the moment it's opened — same
+// idea as Due (iOS): "Weekdays 8:18 PM" rather than a bare interval
+// picker, since the specific time is already implied by what's set.
+function setRecurrenceField(val){
+  const field = el('event-recurrence-input');
+  field.dataset.value = val;
+  field.classList.toggle('is-on', val!=='none');
+  const anchor = recurrenceAnchorDate();
+  el('event-recurrence-label').textContent = recurrenceOptions(anchor).find(o=>o.val===val).label;
+}
+function recurrenceAnchorDate(){
+  const dateStr = el('event-date-input').dataset.value || localDateStr();
+  const timeStr = el('event-start-input').dataset.value || '09:00';
+  const [y,mo,d] = dateStr.split('-').map(Number);
+  const [h,m] = timeStr.split(':').map(Number);
+  return new Date(y,mo-1,d,h,m,0,0);
+}
+function openRecurPicker(){
+  renderRecurOptions();
+  showPickerPanel(el('recur-picker-panel'));
+}
+function closeRecurPicker(){ hidePickerPanel(el('recur-picker-panel')); }
+function renderRecurOptions(){
+  const current = el('event-recurrence-input').dataset.value || 'none';
+  const wrap = el('recur-options'); wrap.innerHTML = '';
+  recurrenceOptions(recurrenceAnchorDate()).forEach(opt=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const check = opt.val===current
+      ? `<svg class="recur-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`
+      : `<span class="recur-check"></span>`;
+    btn.innerHTML = `${check}<span>${escapeHtml(opt.label)}</span>`;
+    btn.addEventListener('click', ()=>{ setRecurrenceField(opt.val); closeRecurPicker(); });
+    wrap.appendChild(btn);
+  });
+}
+el('event-recurrence-input').addEventListener('click', openRecurPicker);
+el('picker-scrim').addEventListener('click', ()=>{ closeDatePicker(); closeTimePicker(); closeRecurPicker(); });
 el('event-date-input').addEventListener('click', ()=> openDatePicker(el('event-date-input')));
 el('event-start-input').addEventListener('click', ()=> openTimePicker(el('event-start-input')));
 el('event-end-input').addEventListener('click', ()=> openTimePicker(el('event-end-input')));
@@ -2617,6 +2774,7 @@ el('event-edit-save-btn').addEventListener('click', async ()=>{
     all_day: isAllDay,
     start_at: startAt.toISOString(),
     end_at: endAt ? endAt.toISOString() : null,
+    recurrence: el('event-recurrence-input').dataset.value || 'none',
   };
   if(editingEventId) await db.updateEvent(editingEventId, payload);
   else await db.addEvent(payload);
