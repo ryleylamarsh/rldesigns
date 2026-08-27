@@ -2402,7 +2402,7 @@ function showDemoWeather(){
   // so the widget's design is visible even when live data isn't. A real
   // deployment (Cloudflare Pages, no CSP sandbox) replaces this with a
   // live reading on the next successful fetch.
-  renderWeatherNow(2, 22);
+  renderWeatherNow(95, 22);
   document.querySelectorAll('.js-weather-now').forEach(n=> n.title = 'Demo reading — needs a real deployment (this preview blocks outside network calls) and location access.');
   renderWeatherStrip([
     {label:'Fri', code:1, temp:19}, {label:'Sat', code:3, temp:17}, {label:'Sun', code:0, temp:21},
