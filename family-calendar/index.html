@@ -1114,6 +1114,13 @@
         <p class="settings-hint">Photos and short videos both work — a video plays muted and looped for its slot in the rotation.</p>
         <div class="photo-grid" id="photo-grid"></div>
         <input type="file" id="photo-upload-input" accept="image/*,video/*" multiple class="visually-hidden">
+        <div class="field" style="margin-top:1rem">
+          <label for="photo-url-input">Or add by URL — e.g. a video served locally on this device (no upload, no size limit)</label>
+          <div style="display:flex; gap:.6rem;">
+            <input type="text" id="photo-url-input" placeholder="http://localhost:8080/screensaver.mp4" style="flex:1">
+            <button class="btn primary" id="photo-url-add-btn">Add</button>
+          </div>
+        </div>
       </div>
 
       <div class="settings-section">
@@ -1618,11 +1625,27 @@ function supabaseDb(sb){
       const media_type = file.type.startsWith('video/') ? 'video' : 'photo';
       await sb.from('screensaver_photos').insert({ storage_path: path, sort_order: sortOrder, media_type });
     },
+    // Points a slide at a URL the *device itself* resolves at render time
+    // (e.g. http://localhost:PORT/screensaver.mp4 from a tiny local
+    // server on the same wall PC serving a video that never leaves that
+    // machine) rather than a file this browser uploads to Storage —
+    // storage_path is the literal URL, not a Storage object key. See
+    // getPhotoUrl()'s scheme check below for how a slide row is told
+    // apart as external vs. an uploaded object.
+    async addPhotoUrl(url, sortOrder){
+      const media_type = /\.(mp4|mov|webm|m4v|mkv)(\?|$)/i.test(url) ? 'video' : 'photo';
+      await sb.from('screensaver_photos').insert({ storage_path: url, sort_order: sortOrder, media_type });
+    },
     async deletePhoto(photo){
-      await sb.storage.from('screensaver-photos').remove([photo.storage_path]);
+      if(!/^(https?:|file:)/i.test(photo.storage_path)){
+        await sb.storage.from('screensaver-photos').remove([photo.storage_path]);
+      }
       await sb.from('screensaver_photos').delete().eq('id', photo.id);
     },
-    getPhotoUrl(photo){ return sb.storage.from('screensaver-photos').getPublicUrl(photo.storage_path).data.publicUrl; },
+    getPhotoUrl(photo){
+      if(/^(https?:|file:)/i.test(photo.storage_path)) return photo.storage_path;
+      return sb.storage.from('screensaver-photos').getPublicUrl(photo.storage_path).data.publicUrl;
+    },
 
     subscribe(cb){
       const channel = sb.channel('public-changes');
@@ -1818,6 +1841,15 @@ function localDb(){
       const dataUrl = await new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
       const media_type = file.type.startsWith('video/') ? 'video' : 'photo';
       data.photos.push({ id:uid(), storage_path:dataUrl, sort_order:sortOrder, media_type });
+      persist(); notify('photos');
+    },
+    // See supabaseDb.addPhotoUrl() — same idea, points a slide at a URL
+    // the device resolves itself (e.g. a video served by a tiny local
+    // server on that machine) instead of reading a file into memory.
+    // No size cap here since nothing gets read into this tab at all.
+    async addPhotoUrl(url, sortOrder){
+      const media_type = /\.(mp4|mov|webm|m4v|mkv)(\?|$)/i.test(url) ? 'video' : 'photo';
+      data.photos.push({ id:uid(), storage_path:url, sort_order:sortOrder, media_type });
       persist(); notify('photos');
     },
     async deletePhoto(photo){ data.photos = data.photos.filter(p=>p.id!==photo.id); persist(); notify('photos'); },
@@ -3643,6 +3675,13 @@ el('photo-upload-input').addEventListener('change', async (e)=>{
   const files = Array.from(e.target.files||[]);
   for(let i=0;i<files.length;i++) await db.addPhotoFile(files[i], state.photos.length+i);
   e.target.value = '';
+  loadPhotos();
+});
+el('photo-url-add-btn').addEventListener('click', async ()=>{
+  const url = el('photo-url-input').value.trim();
+  if(!url) return;
+  await db.addPhotoUrl(url, state.photos.length);
+  el('photo-url-input').value = '';
   loadPhotos();
 });
 async function loadPhotos(){
