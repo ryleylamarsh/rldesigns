@@ -817,6 +817,59 @@
   .date-picker-panel .btn, .time-picker-panel .btn{ background:rgba(255,255,255,.12); color:#fff; box-shadow:none; }
   .date-picker-panel .btn.primary, .time-picker-panel .btn.primary{ background:#fff; color:#171335; }
 
+  /* On-screen keyboard — this is a fixed wall panel with no physical
+     keyboard attached, so text fields get a custom in-app keyboard
+     instead of relying on whatever (if any) OS virtual keyboard the
+     kiosk browser might show. Docks to the bottom edge, glass-styled to
+     match the timer/event panels, and shifts the open event modal up
+     just enough to keep the focused field clear of it (see
+     shiftModalForKeyboard() in the script). */
+  .onscreen-keyboard{
+    position:fixed; left:50%; bottom:0; z-index:67; width:min(30rem, 96vw);
+    transform:translate(-50%, 100%); transition:transform .28s cubic-bezier(.22,.9,.32,1);
+    background:rgba(255,255,255,.14); backdrop-filter:blur(28px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(28px) saturate(120%) brightness(1.06);
+    border:1px solid rgba(255,255,255,.24); border-bottom:none; border-radius:1.2rem 1.2rem 0 0;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 -10px 40px rgba(0,0,0,.35);
+    padding:.7rem .6rem calc(.6rem + env(safe-area-inset-bottom,0px));
+  }
+  .onscreen-keyboard.is-open{ transform:translate(-50%,0); }
+  .onscreen-keyboard[hidden]{ display:none; }
+  .osk-row{ display:flex; gap:.4rem; margin-bottom:.4rem; }
+  .osk-row:last-child{ margin-bottom:0; }
+  .osk-row-inset{ padding:0 3%; }
+  .osk-key{
+    flex:1; min-width:0; height:6.2vmin; min-height:2.5rem; max-height:3.4rem;
+    border:none; border-radius:.6rem; background:rgba(255,255,255,.16); color:#fff;
+    font-weight:700; font-size:1.02rem; cursor:pointer; box-shadow:inset 0 1px 0 rgba(255,255,255,.14);
+  }
+  .osk-key:active{ background:rgba(255,255,255,.34); }
+  .osk-key.is-active{ background:rgba(255,255,255,.4); }
+  .osk-key[data-action="shift"], .osk-key[data-action="backspace"], .osk-key[data-action="mode"], .osk-key[data-action="done"]{
+    font-size:.8rem; background:rgba(255,255,255,.1);
+  }
+  .osk-key[data-action="done"]{ background:#fff; color:#171335; }
+  .osk-key[data-action="space"]{ font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.6); }
+
+  /* Save confirmation toast — shown after Save on the add/edit event
+     modal so there's some feedback the event actually landed, with a
+     one-tap way to jump straight to it rather than hunting the grid. */
+  .save-toast{
+    position:fixed; left:50%; bottom:2.2rem; z-index:69; transform:translate(-50%, 130%); opacity:0;
+    display:flex; align-items:center; gap:.6rem; padding:.6rem .6rem .6rem 1rem; max-width:min(26rem,92vw);
+    background:rgba(30,28,48,.85); backdrop-filter:blur(24px) saturate(130%); -webkit-backdrop-filter:blur(24px) saturate(130%);
+    border:1px solid rgba(255,255,255,.18); border-radius:999px;
+    box-shadow:0 14px 40px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.14);
+    color:#fff; transition:transform .34s cubic-bezier(.22,.9,.32,1), opacity .28s ease;
+  }
+  .save-toast.is-open{ transform:translate(-50%,0); opacity:1; }
+  .save-toast[hidden]{ display:none; }
+  .save-toast-icon{ width:1.6rem; height:1.6rem; border-radius:50%; background:rgba(74,222,128,.28); color:#4ade80; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .save-toast-icon svg{ width:.95rem; height:.95rem; }
+  .save-toast-text{ font-weight:700; font-size:.9rem; white-space:nowrap; }
+  .save-toast-view{ margin-left:.2rem; border:none; background:rgba(255,255,255,.16); color:#fff; font-weight:700; font-size:.82rem; padding:.5rem 1rem; border-radius:999px; cursor:pointer; white-space:nowrap; }
+  .save-toast-dismiss{ border:none; background:none; color:rgba(255,255,255,.5); width:1.8rem; height:1.8rem; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .save-toast-dismiss svg{ width:.8rem; height:.8rem; }
+
   /* Screensaver --------------------------------------------------------- */
   #screensaver{
     position:fixed; inset:0; z-index:100; background:#000; opacity:0; pointer-events:none;
@@ -1083,7 +1136,7 @@
     <h2 id="event-edit-title">Add event</h2>
     <div class="field">
       <label for="event-title-input">Title</label>
-      <input type="text" id="event-title-input" maxlength="100">
+      <input type="text" id="event-title-input" maxlength="100" inputmode="none" autocomplete="off">
     </div>
     <div class="field">
       <label>Assign to</label>
@@ -1117,7 +1170,7 @@
     </div>
     <div class="field">
       <label for="event-location-input">Location (optional)</label>
-      <input type="text" id="event-location-input" maxlength="120">
+      <input type="text" id="event-location-input" maxlength="120" inputmode="none" autocomplete="off">
     </div>
     <div class="modal-actions">
       <button class="btn danger" id="event-delete-btn" style="display:none">Delete</button>
@@ -1245,6 +1298,17 @@
 <div class="recur-picker-panel" id="recur-picker-panel" hidden>
   <div class="picker-head-label" style="margin-bottom:.6rem;">Repeat</div>
   <div id="recur-options"></div>
+</div>
+
+<div class="onscreen-keyboard" id="onscreen-keyboard" hidden></div>
+
+<div class="save-toast" id="save-toast" hidden>
+  <span class="save-toast-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+  <span class="save-toast-text" id="save-toast-text">Event added</span>
+  <button type="button" class="save-toast-view" id="save-toast-view-btn">View</button>
+  <button type="button" class="save-toast-dismiss" id="save-toast-dismiss-btn" aria-label="Dismiss">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
 </div>
 
 <div id="timer-scrim"></div>
@@ -1377,7 +1441,7 @@ function supabaseDb(sb){
       ]);
       return [...(ranged||[]), ...expandRecurringEvents(recurring||[], startISO, endISO)].sort((a,b)=> a.start_at<b.start_at?-1:1);
     },
-    async addEvent(payload){ await sb.from('events').insert(payload); },
+    async addEvent(payload){ return await unwrap(sb.from('events').insert(payload).select().single()); },
     async updateEvent(id,patch){ await sb.from('events').update(patch).eq('id',id); },
     async deleteEvent(id){ await sb.from('events').delete().eq('id',id); },
 
@@ -1554,7 +1618,7 @@ function localDb(){
       const recurring = data.events.filter(e=> (e.recurrence||'none')!=='none');
       return [...ranged, ...expandRecurringEvents(recurring, startISO, endISO)].sort((a,b)=> a.start_at<b.start_at?-1:1);
     },
-    async addEvent(payload){ data.events.push({ id:uid(), google_event_id:null, last_synced_at:new Date().toISOString(), recurrence:'none', ...payload }); persist(); notify('events'); },
+    async addEvent(payload){ const row = { id:uid(), google_event_id:null, last_synced_at:new Date().toISOString(), recurrence:'none', ...payload }; data.events.push(row); persist(); notify('events'); return row; },
     async updateEvent(id,patch){ const e=data.events.find(x=>x.id===id); if(e) Object.assign(e,patch); persist(); notify('events'); },
     async deleteEvent(id){ data.events = data.events.filter(e=>e.id!==id); persist(); notify('events'); },
 
@@ -2310,7 +2374,7 @@ function eventRowHtml(e){
   // but would actually shift the whole series' anchor day/time.
   const recurring = e.recurrence_source_id ? 1 : 0;
   const recurIcon = recurring ? `<svg class="er-recur-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>` : '';
-  return `<button class="event-row" style="border-left-color:${color}" data-id="${e.id}" data-synced="${synced}" data-recurring="${recurring}"><span class="ername">${recurIcon}${escapeHtml(e.title)}</span><span class="ertime">${time}${synced?' · synced':''}</span></button>`;
+  return `<button class="event-row" style="border-left-color:${color}" data-id="${e.id}" data-synced="${synced}" data-recurring="${recurring}"><span class="ername">${escapeHtml(e.title)}</span><span class="ertime">${recurIcon}${time}${synced?' · synced':''}</span></button>`;
 }
 function bindEventRows(container){
   container.querySelectorAll('.event-row').forEach(row=>{
@@ -2589,8 +2653,184 @@ function openEventPanel(){
     '1.6rem');
 }
 function closeEventPanel(){
+  closeOnscreenKeyboard();
   closeFlipPanel(el('modal-event-edit').querySelector('.modal'), el('modal-event-edit'), el('fab-add-event'));
 }
+
+/* =========================================================================
+   On-screen keyboard — the wall panel this app runs on has no physical
+   keyboard, so the event modal's Title/Location fields (inputmode="none"
+   suppresses any OS virtual keyboard) get a custom in-app one instead,
+   matching the rest of the app's glass aesthetic. Types directly into
+   whichever field is focused; buttons preventDefault on mousedown so
+   tapping a key never steals focus away from the field.
+   ========================================================================= */
+let oskTarget = null, oskMode = 'letters', oskShift = false;
+const OSK_LETTER_ROWS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+const OSK_NUM_ROWS = ['1234567890', "-/:;()$&@\"", ".,?!'"];
+function oskMakeKey(label, action, flexGrow, char, extraClass){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'osk-key' + (extraClass ? ' '+extraClass : '');
+  btn.dataset.action = action;
+  btn.style.flex = flexGrow || 1;
+  btn.textContent = label;
+  btn.addEventListener('mousedown', e=> e.preventDefault());
+  btn.addEventListener('click', ()=> oskHandleKey(action, char));
+  return btn;
+}
+function renderOnscreenKeyboard(){
+  const kb = el('onscreen-keyboard');
+  kb.innerHTML = '';
+  const rows = oskMode==='letters' ? OSK_LETTER_ROWS : OSK_NUM_ROWS;
+  rows.forEach((rowStr, i)=>{
+    const rowEl = document.createElement('div');
+    rowEl.className = 'osk-row' + (oskMode==='letters' && i===1 ? ' osk-row-inset' : '');
+    if(oskMode==='letters' && i===2) rowEl.appendChild(oskMakeKey('⇧', 'shift', 1.5, null, oskShift ? 'is-active' : ''));
+    [...rowStr].forEach(ch=>{
+      const label = oskMode==='letters' && oskShift ? ch.toUpperCase() : ch;
+      rowEl.appendChild(oskMakeKey(label, 'char', 1, ch));
+    });
+    if(oskMode==='letters' && i===2) rowEl.appendChild(oskMakeKey('⌫', 'backspace', 1.5));
+    kb.appendChild(rowEl);
+  });
+  const bottomRow = document.createElement('div');
+  bottomRow.className = 'osk-row';
+  bottomRow.appendChild(oskMakeKey(oskMode==='letters' ? '123' : 'ABC', 'mode', 1.6));
+  bottomRow.appendChild(oskMakeKey(',', 'char', 1, ','));
+  bottomRow.appendChild(oskMakeKey('space', 'space', 6, ' '));
+  bottomRow.appendChild(oskMakeKey('.', 'char', 1, '.'));
+  bottomRow.appendChild(oskMakeKey('Done', 'done', 1.8));
+  kb.appendChild(bottomRow);
+}
+function oskInsertText(input, text){
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  const maxLen = input.maxLength > 0 ? input.maxLength : Infinity;
+  const next = input.value.slice(0,start) + text + input.value.slice(end);
+  if(next.length > maxLen) return;
+  input.value = next;
+  const pos = start + text.length;
+  input.setSelectionRange(pos,pos);
+  input.dispatchEvent(new Event('input', {bubbles:true}));
+}
+function oskBackspace(input){
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  if(start===end){
+    if(start===0) return;
+    input.value = input.value.slice(0,start-1) + input.value.slice(end);
+    input.setSelectionRange(start-1, start-1);
+  } else {
+    input.value = input.value.slice(0,start) + input.value.slice(end);
+    input.setSelectionRange(start, start);
+  }
+  input.dispatchEvent(new Event('input', {bubbles:true}));
+}
+function oskHandleKey(action, char){
+  const input = oskTarget;
+  if(!input) return;
+  if(action==='char'){
+    oskInsertText(input, oskMode==='letters' && oskShift ? char.toUpperCase() : char);
+    if(oskMode==='letters' && oskShift){ oskShift = false; renderOnscreenKeyboard(); }
+  } else if(action==='space'){
+    oskInsertText(input, ' ');
+  } else if(action==='backspace'){
+    oskBackspace(input);
+  } else if(action==='shift'){
+    oskShift = !oskShift; renderOnscreenKeyboard();
+  } else if(action==='mode'){
+    oskMode = oskMode==='letters' ? 'numbers' : 'letters'; oskShift = false; renderOnscreenKeyboard();
+  } else if(action==='done'){
+    input.blur();
+    closeOnscreenKeyboard();
+  }
+}
+function shiftModalForKeyboard(){
+  const modal = el('modal-event-edit').querySelector('.modal');
+  const kb = el('onscreen-keyboard');
+  // Measure the keyboard's own box height rather than its animated
+  // getBoundingClientRect() — it's still mid-slide-up (transform)
+  // on the frame right after .is-open is added, so its live rect
+  // doesn't reflect where it's about to settle. offsetHeight is
+  // unaffected by the transform and is accurate as soon as it's
+  // unhidden, so the resting top (fixed to the viewport bottom) can
+  // be computed directly with no animation-timing race.
+  const finalKbTop = window.innerHeight - kb.offsetHeight;
+  const modalRect = modal.getBoundingClientRect();
+  const margin = 16;
+  const overlap = modalRect.bottom - finalKbTop + margin;
+  if(overlap > 0){
+    const newTop = Math.max(margin, modalRect.top - overlap);
+    modal.style.transition = 'top .28s cubic-bezier(.4,0,.2,1)';
+    modal.style.top = newTop + 'px';
+  }
+}
+function unshiftModalForKeyboard(){
+  const modal = el('modal-event-edit').querySelector('.modal');
+  if(!modal.style.top || modal.hidden) return;
+  const naturalH = modal.offsetHeight;
+  modal.style.transition = 'top .28s cubic-bezier(.4,0,.2,1)';
+  modal.style.top = ((window.innerHeight-naturalH)/2) + 'px';
+}
+function openOnscreenKeyboard(input){
+  oskTarget = input;
+  renderOnscreenKeyboard();
+  const kb = el('onscreen-keyboard');
+  kb.hidden = false;
+  void kb.offsetWidth;
+  kb.classList.add('is-open');
+  shiftModalForKeyboard();
+}
+function closeOnscreenKeyboard(){
+  const kb = el('onscreen-keyboard');
+  if(kb.hidden) return;
+  kb.classList.remove('is-open');
+  setTimeout(()=>{ kb.hidden = true; }, 260);
+  oskTarget = null;
+  unshiftModalForKeyboard();
+}
+document.addEventListener('focusin', (e)=>{
+  const kbFields = [el('event-title-input'), el('event-location-input')];
+  if(kbFields.includes(e.target)) openOnscreenKeyboard(e.target);
+  else if(!el('onscreen-keyboard').contains(e.target)) closeOnscreenKeyboard();
+});
+
+/* =========================================================================
+   Save confirmation toast — shown after Save on the add/edit event modal,
+   with a one-tap "View" that jumps the calendar to that event's date and
+   opens its detail view, so there's a quick way to confirm it actually
+   landed without hunting through the grid for it.
+   ========================================================================= */
+let saveToastTimer = null, saveToastEvent = null;
+function showSaveToast(ev, isNew){
+  saveToastEvent = ev;
+  el('save-toast-text').textContent = isNew ? 'Event added' : 'Event updated';
+  const toast = el('save-toast');
+  toast.hidden = false;
+  void toast.offsetWidth;
+  toast.classList.add('is-open');
+  clearTimeout(saveToastTimer);
+  saveToastTimer = setTimeout(hideSaveToast, 6000);
+}
+function hideSaveToast(){
+  const toast = el('save-toast');
+  clearTimeout(saveToastTimer);
+  toast.classList.remove('is-open');
+  setTimeout(()=>{ toast.hidden = true; }, 260);
+}
+el('save-toast-dismiss-btn').addEventListener('click', hideSaveToast);
+el('save-toast-view-btn').addEventListener('click', async ()=>{
+  const ev = saveToastEvent;
+  hideSaveToast();
+  if(!ev) return;
+  const day = new Date(ev.start_at);
+  if(state.calMode==='week') state.weekAnchor = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  else state.monthDate = new Date(day.getFullYear(), day.getMonth(), 1);
+  await loadCalendarData();
+  const found = state.events.find(e=> e.id===ev.id || e.recurrence_source_id===ev.id) || ev;
+  openEventModal(found);
+});
 
 /* =========================================================================
    Date/time pickers — touch-friendly stand-ins for input[type=date]/
@@ -2776,10 +3016,13 @@ el('event-edit-save-btn').addEventListener('click', async ()=>{
     end_at: endAt ? endAt.toISOString() : null,
     recurrence: el('event-recurrence-input').dataset.value || 'none',
   };
-  if(editingEventId) await db.updateEvent(editingEventId, payload);
-  else await db.addEvent(payload);
+  const isNew = !editingEventId;
+  let savedEvent;
+  if(editingEventId){ await db.updateEvent(editingEventId, payload); savedEvent = { ...payload, id: editingEventId }; }
+  else { savedEvent = await db.addEvent(payload); }
   closeEventPanel();
   loadCalendarData();
+  showSaveToast(savedEvent, isNew);
 });
 el('event-delete-btn').addEventListener('click', ()=>{
   confirmDialog('Delete this event?', "This only removes it here — it won't affect Google Calendar.", async ()=>{
