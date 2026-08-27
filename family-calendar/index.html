@@ -207,7 +207,7 @@
        so the today-button's open/close animation can collapse its own
        surrounding space to exactly zero, not just its own width. */
     display:flex; align-items:center; background:rgba(255,255,255,.12);
-    backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+    backdrop-filter:blur(20px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(20px) saturate(120%) brightness(1.06);
     border:1px solid rgba(255,255,255,.2); border-radius:999px; padding:.25rem;
     margin-left:auto; /* pushes the prev/next pill to the toolbar's right edge */
     box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 4px 14px rgba(0,0,0,.28);
@@ -219,7 +219,7 @@
   .glass-icon-btn svg{ width:1.05rem; height:1.05rem; display:block; }
   .glass-icon-btn:active{ transform:scale(.92); }
   .glass-segmented{
-    display:flex; background:rgba(255,255,255,.12); backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+    display:flex; background:rgba(255,255,255,.12); backdrop-filter:blur(20px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(20px) saturate(120%) brightness(1.06);
     border:1px solid rgba(255,255,255,.2); border-radius:999px; padding:.25rem;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 4px 14px rgba(0,0,0,.28);
   }
@@ -231,7 +231,7 @@
   .filter-chip{
     display:flex; align-items:center; justify-content:center; min-width:var(--tap-min); height:var(--tap-min); padding:.2rem;
     border-radius:999px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.12);
-    backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+    backdrop-filter:blur(20px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(20px) saturate(120%) brightness(1.06);
     cursor:pointer; opacity:1; transition: opacity .2s ease, transform .15s ease;
   }
   .filter-chip.is-off{ opacity:.35; }
@@ -251,6 +251,100 @@
     background:var(--accent); color:var(--accent-ink); padding:.55rem 1rem; font-weight:600; font-size:1rem;
     text-align:center;
   }
+
+  /* Timer -------------------------------------------------------------
+     Round trigger next to each clock (there are two — the main header
+     and the month-view sidebar — see .timer-trigger-hdr/-mside in HTML;
+     both open the one shared panel below via openTimerPanel(), which
+     computes the FLIP-style expand animation from whichever button was
+     tapped). .hero-clock-block goes from a column to a row to fit the
+     button beside the clock/date text without disturbing its layout. */
+  .hero-clock-block{ display:flex; align-items:center; gap:.7rem; }
+  .hero-clock-text{ display:flex; flex-direction:column; gap:.15rem; }
+  /* Sized in em off its own font-size (set to match .hero-clock-block
+     .clock's font-size exactly, in each of its breakpoints below) so
+     width/height:1em always equals the clock text's height without
+     duplicating clamp/vmin values — the icon, running-time text, and
+     progress ring below are all sized in em too, so they scale together
+     automatically instead of needing their own breakpoint overrides. */
+  .timer-trigger{
+    position:relative; display:flex; align-items:center; justify-content:center;
+    font-size:2.3rem; width:1em; height:1em; border-radius:50%; border:none; cursor:pointer; flex-shrink:0;
+    background:rgba(255,255,255,.14); backdrop-filter:blur(20px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(20px) saturate(120%) brightness(1.06);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 4px 14px rgba(0,0,0,.28); color:#fff;
+  }
+  .timer-trigger:active{ transform:scale(.92); }
+  .timer-trigger svg{ width:.48em; height:.48em; display:block; }
+  .timer-trigger .ttt{ display:none; font-size:.26em; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.01em; }
+  .timer-trigger.is-active svg{ display:none; }
+  .timer-trigger.is-active .ttt{ display:block; }
+  /* Progress ring — a conic-gradient sweep masked down to a thin band
+     just outside the button (same content-box/border-box exclude trick
+     used for the month view's "today" comet), updated each tick via the
+     --timer-progress custom property. Only visible while a timer is
+     actually counting down. */
+  .timer-trigger::before{
+    content:''; position:absolute; inset:-.08em; border-radius:50%; pointer-events:none; padding:.045em;
+    background:conic-gradient(#fff var(--timer-progress,0deg), rgba(255,255,255,.22) 0deg);
+    mask-image:linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+    mask-clip:content-box, border-box; mask-composite:exclude;
+    -webkit-mask-image:linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+    -webkit-mask-clip:content-box, border-box; -webkit-mask-composite:xor;
+    opacity:0; transition:opacity .25s ease;
+  }
+  .timer-trigger.is-active::before{ opacity:1; }
+  .timer-trigger.is-done{ animation:timer-pulse 1s ease-in-out infinite; }
+  @keyframes timer-pulse{ 50%{ background:rgba(255,90,90,.55); } }
+  #app[data-view="calendar"] .timer-trigger{ font-size:7.4vmin; }
+
+  /* Transparent click-catcher behind the panel so tapping anywhere
+     outside it closes it, without dimming the wallpaper underneath —
+     this is a small floating card, not a full modal takeover. */
+  #timer-scrim{ position:fixed; inset:0; z-index:57; display:none; }
+  #timer-scrim.is-open{ display:block; }
+  /* No top/left here — openTimerPanel() always sets those explicitly,
+     centering the panel within whichever "wallpaper" element is
+     currently visible (getWallpaperAreaRect(): the header, or the month
+     sidebar when the header's hidden in landscape month mode), computed
+     fresh on every open rather than fixed in CSS. That sidesteps having
+     to special-case the nav rail's width (landscape puts it in its own
+     column to the left of the header, which a plain fixed left:Nrem
+     would otherwise land underneath). */
+  .timer-panel{
+    position:fixed; z-index:58; width:min(23rem, 88vw);
+    background:rgba(255,255,255,.14); backdrop-filter:blur(28px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(28px) saturate(120%) brightness(1.06);
+    border:1px solid rgba(255,255,255,.26); border-radius:1.6rem; padding:1.3rem 1.4rem 1.5rem;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 20px 60px rgba(0,0,0,.45);
+    color:#fff; overflow:hidden;
+  }
+  .timer-panel[hidden]{ display:none; }
+  .timer-panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.9rem; }
+  .timer-panel-title{ font-weight:800; font-size:1.05rem; }
+  .timer-panel-close{
+    display:flex; align-items:center; justify-content:center; width:2.1rem; height:2.1rem; border-radius:50%;
+    border:none; background:rgba(255,255,255,.14); color:#fff; cursor:pointer;
+  }
+  .timer-panel-close svg{ width:.9rem; height:.9rem; }
+  .timer-display{
+    text-align:center; font-size:3rem; font-weight:800; font-variant-numeric:tabular-nums;
+    margin-bottom:1.1rem; letter-spacing:.01em;
+  }
+  .timer-panel[data-state="done"] .timer-display{ animation:timer-pulse-text 1s ease-in-out infinite; color:#ff8a8a; }
+  @keyframes timer-pulse-text{ 50%{ opacity:.5; } }
+  .timer-add-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:.5rem; margin-bottom:1.1rem; }
+  .timer-add-btn{
+    border:none; border-radius:.9rem; padding:.65rem 0; background:rgba(255,255,255,.14);
+    color:#fff; font-weight:700; font-size:.85rem; cursor:pointer;
+  }
+  .timer-add-btn:active{ transform:scale(.94); }
+  .timer-actions{ display:flex; gap:.6rem; }
+  .timer-btn{
+    flex:1; border:none; border-radius:999px; padding:.75rem 0; font-weight:700; font-size:.9rem; cursor:pointer;
+  }
+  .timer-btn.primary{ background:#fff; color:#171335; }
+  .timer-btn.primary:disabled{ opacity:.4; }
+  .timer-btn.ghost{ background:rgba(255,255,255,.14); color:#fff; }
+  .timer-btn:active:not(:disabled){ transform:scale(.96); }
 
   /* Nav ---------------------------------------------------------------- */
   nav#nav{
@@ -618,8 +712,14 @@
     <div class="hero-overlay" aria-hidden="true"></div>
     <div class="hero-main">
       <div class="hero-clock-block">
-        <span class="clock js-clock" id="hdr-clock">--:--</span>
-        <span class="subline js-date" id="hdr-date">Sunday, January 1</span>
+        <div class="hero-clock-text">
+          <span class="clock js-clock" id="hdr-clock">--:--</span>
+          <span class="subline js-date" id="hdr-date">Sunday, January 1</span>
+        </div>
+        <button class="timer-trigger" id="timer-trigger-hdr" aria-label="Timer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
+          <span class="ttt"></span>
+        </button>
       </div>
       <div class="hero-weather-block">
         <div class="weather-now js-weather-now" id="hdr-weather-now">
@@ -665,8 +765,14 @@
           <div class="hero-overlay" aria-hidden="true"></div>
           <div class="month-side-content">
             <div class="hero-clock-block js-clock-block">
-              <span class="clock js-clock" id="mside-clock">--:--</span>
-              <span class="subline js-date" id="mside-date">Sunday, January 1</span>
+              <div class="hero-clock-text">
+                <span class="clock js-clock" id="mside-clock">--:--</span>
+                <span class="subline js-date" id="mside-date">Sunday, January 1</span>
+              </div>
+              <button class="timer-trigger" id="timer-trigger-mside" aria-label="Timer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>
+                <span class="ttt"></span>
+              </button>
             </div>
             <div class="month-side-weather">
               <div class="weather-now js-weather-now" id="mside-weather-now">
@@ -947,6 +1053,27 @@
       <button class="btn" id="confirm-cancel-btn">Cancel</button>
       <button class="btn danger" id="confirm-ok-btn">Delete</button>
     </div>
+  </div>
+</div>
+
+<div id="timer-scrim"></div>
+<div class="timer-panel" id="timer-panel" hidden>
+  <div class="timer-panel-head">
+    <span class="timer-panel-title">Timer</span>
+    <button class="timer-panel-close" id="timer-panel-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="timer-display" id="timer-display">0:00</div>
+  <div class="timer-add-row">
+    <button class="timer-add-btn" data-add="60000">+1m</button>
+    <button class="timer-add-btn" data-add="300000">+5m</button>
+    <button class="timer-add-btn" data-add="900000">+15m</button>
+    <button class="timer-add-btn" data-add="1800000">+30m</button>
+  </div>
+  <div class="timer-actions">
+    <button class="timer-btn ghost" id="timer-secondary-btn">Reset</button>
+    <button class="timer-btn primary" id="timer-primary-btn" disabled>Start</button>
   </div>
 </div>
 
@@ -1417,6 +1544,209 @@ function tickClock(){
 }
 setInterval(tickClock, 1000);
 tickClock();
+
+/* =========================================================================
+   Timer — round trigger next to each clock (header + month sidebar),
+   expanding into one shared glass panel. pendingMs doubles as both "the
+   duration being set" (idle) and "the total scheduled duration" (once
+   running, used as the progress-ring denominator) — it only ever grows
+   via timerAdd(), and only resets to 0 in timerReset(). remainingMs is
+   derived from endAt on every tick rather than counted down directly, so
+   it can't drift from wall-clock time.
+   ========================================================================= */
+const timerState = { pendingMs:0, remainingMs:0, running:false, paused:false, endAt:null, intervalId:null, done:false };
+let timerPanelTrigger = null;
+
+function formatTimerMs(ms){
+  const totalSec = Math.round(Math.max(0,ms)/1000);
+  const h = Math.floor(totalSec/3600), m = Math.floor((totalSec%3600)/60), s = totalSec%60;
+  return h>0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function timerAdd(ms){
+  if(timerState.done){ // start fresh rather than adding onto a finished timer
+    timerState.done = false; timerState.running = false; timerState.paused = false;
+    timerState.remainingMs = 0; timerState.pendingMs = 0;
+  }
+  timerState.pendingMs += ms;
+  if(timerState.running && !timerState.paused) timerState.endAt += ms;
+  else if(timerState.running && timerState.paused) timerState.remainingMs += ms;
+  renderTimerAll();
+}
+function timerReset(){
+  clearInterval(timerState.intervalId);
+  Object.assign(timerState, { pendingMs:0, remainingMs:0, running:false, paused:false, endAt:null, intervalId:null, done:false });
+  renderTimerAll();
+}
+function timerStart(){
+  if(timerState.pendingMs<=0) return;
+  timerState.remainingMs = timerState.pendingMs;
+  timerState.endAt = Date.now() + timerState.remainingMs;
+  timerState.running = true; timerState.paused = false; timerState.done = false;
+  clearInterval(timerState.intervalId);
+  timerState.intervalId = setInterval(timerTick, 250);
+  renderTimerAll();
+}
+function timerToggle(){
+  if(!timerState.running) return;
+  if(timerState.paused){
+    timerState.paused = false;
+    timerState.endAt = Date.now() + timerState.remainingMs;
+    timerState.intervalId = setInterval(timerTick, 250);
+  } else {
+    timerState.paused = true;
+    timerState.remainingMs = Math.max(0, timerState.endAt - Date.now());
+    clearInterval(timerState.intervalId); timerState.intervalId = null;
+  }
+  renderTimerAll();
+}
+function timerTick(){
+  const remain = timerState.endAt - Date.now();
+  if(remain <= 0){
+    timerState.remainingMs = 0; timerState.running = false; timerState.paused = false; timerState.done = true;
+    clearInterval(timerState.intervalId); timerState.intervalId = null;
+    playTimerChime();
+  } else {
+    timerState.remainingMs = remain;
+  }
+  renderTimerAll();
+}
+// Three ascending short tones (no external asset — just oscillators), so
+// finishing reads even if the panel's already closed. Wrapped in try/catch:
+// autoplay can be blocked, and the pulsing button/panel already carries the
+// signal visually either way.
+function playTimerChime(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    [[0,880],[.18,880],[.36,1046.5]].forEach(([t,freq])=>{
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now+t);
+      gain.gain.linearRampToValueAtTime(.2, now+t+.02);
+      gain.gain.exponentialRampToValueAtTime(.001, now+t+.32);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(now+t); osc.stop(now+t+.34);
+    });
+  }catch(e){}
+}
+
+function renderTimerAll(){
+  renderTimerButtons();
+  if(!el('timer-panel').hidden) renderTimerPanel();
+}
+function renderTimerButtons(){
+  const progressDeg = (timerState.running && timerState.pendingMs>0)
+    ? Math.min(360, Math.max(0, (1 - timerState.remainingMs/timerState.pendingMs) * 360)) : 0;
+  [el('timer-trigger-hdr'), el('timer-trigger-mside')].forEach(btn=>{
+    if(!btn) return;
+    btn.classList.toggle('is-active', timerState.running);
+    btn.classList.toggle('is-done', timerState.done);
+    btn.style.setProperty('--timer-progress', progressDeg+'deg');
+    const ttt = btn.querySelector('.ttt');
+    if(ttt) ttt.textContent = timerState.running ? formatTimerMs(timerState.remainingMs) : '';
+  });
+}
+function renderTimerPanel(){
+  const panel = el('timer-panel'), secondaryBtn = el('timer-secondary-btn'), primaryBtn = el('timer-primary-btn');
+  if(timerState.done){
+    panel.dataset.state = 'done';
+    el('timer-display').textContent = "Time's up!";
+    secondaryBtn.hidden = true;
+    primaryBtn.hidden = false; primaryBtn.disabled = false; primaryBtn.textContent = 'Dismiss'; primaryBtn.onclick = timerReset;
+  } else if(timerState.running){
+    panel.dataset.state = 'running';
+    el('timer-display').textContent = formatTimerMs(timerState.remainingMs);
+    secondaryBtn.hidden = false; secondaryBtn.textContent = 'Cancel'; secondaryBtn.onclick = timerReset;
+    primaryBtn.hidden = false; primaryBtn.disabled = false;
+    primaryBtn.textContent = timerState.paused ? 'Resume' : 'Pause'; primaryBtn.onclick = timerToggle;
+  } else {
+    panel.dataset.state = 'set';
+    el('timer-display').textContent = formatTimerMs(timerState.pendingMs);
+    secondaryBtn.hidden = false; secondaryBtn.textContent = 'Reset'; secondaryBtn.onclick = timerReset;
+    primaryBtn.hidden = false; primaryBtn.disabled = timerState.pendingMs<=0;
+    primaryBtn.textContent = 'Start'; primaryBtn.onclick = timerStart;
+  }
+}
+
+// The "wallpaper area" to center the panel within: the header's photo
+// when it's visible, or the month sidebar's photo when the header is
+// hidden (landscape month mode has no header — see the toolbar
+// relocation earlier in this file).
+function getWallpaperAreaRect(){
+  const header = el('header');
+  if(getComputedStyle(header).display !== 'none') return header.getBoundingClientRect();
+  const side = document.querySelector('.month-side');
+  if(side && getComputedStyle(side).display !== 'none') return side.getBoundingClientRect();
+  return header.getBoundingClientRect();
+}
+
+// FLIP-style expand: measure the panel's natural (CSS-defined) size,
+// center that within the current wallpaper area (clamped to stay
+// on-screen), then animate from the trigger button's circular rect out
+// to that centered rectangle. Reversed the same way on close, back to
+// whichever trigger opened it. The centered position/size stays as
+// explicit inline styles for as long as the panel is open (rather than
+// being cleared back to a CSS default afterward) since .timer-panel has
+// no top/left of its own to fall back to — it's always positioned by
+// this function.
+function openTimerPanel(trigger){
+  const panel = el('timer-panel');
+  timerPanelTrigger = trigger;
+  renderTimerPanel();
+  const startRect = trigger.getBoundingClientRect();
+
+  panel.hidden = false;
+  el('timer-scrim').classList.add('is-open');
+  panel.style.transition = 'none';
+  panel.style.top = '0px'; panel.style.left = '0px'; panel.style.width = ''; panel.style.height = ''; panel.style.borderRadius = '';
+  panel.style.opacity = '0';
+  void panel.offsetWidth;
+  const naturalW = panel.offsetWidth, naturalH = panel.offsetHeight;
+
+  const area = getWallpaperAreaRect();
+  const margin = 16;
+  const finalLeft = Math.min(Math.max(area.left + (area.width-naturalW)/2, margin), window.innerWidth - naturalW - margin);
+  const finalTop = Math.min(Math.max(area.top + (area.height-naturalH)/2, margin), window.innerHeight - naturalH - margin);
+
+  panel.style.top = startRect.top+'px'; panel.style.left = startRect.left+'px';
+  panel.style.width = startRect.width+'px'; panel.style.height = startRect.height+'px';
+  panel.style.borderRadius = '50%';
+  void panel.offsetWidth; // force layout so the transition below actually animates
+  requestAnimationFrame(()=>{
+    panel.style.transition = 'top .4s cubic-bezier(.22,.9,.32,1), left .4s cubic-bezier(.22,.9,.32,1), width .4s cubic-bezier(.22,.9,.32,1), height .4s cubic-bezier(.22,.9,.32,1), border-radius .4s cubic-bezier(.22,.9,.32,1), opacity .32s ease';
+    panel.style.top = finalTop+'px'; panel.style.left = finalLeft+'px';
+    panel.style.width = naturalW+'px'; panel.style.height = naturalH+'px';
+    panel.style.borderRadius = '1.6rem'; panel.style.opacity = '1';
+  });
+}
+function closeTimerPanel(){
+  const panel = el('timer-panel');
+  if(panel.hidden) return;
+  const trigger = timerPanelTrigger || el('timer-trigger-hdr');
+  const rect = trigger.getBoundingClientRect();
+  panel.style.transition = 'top .32s cubic-bezier(.4,0,.2,1), left .32s cubic-bezier(.4,0,.2,1), width .32s cubic-bezier(.4,0,.2,1), height .32s cubic-bezier(.4,0,.2,1), border-radius .32s cubic-bezier(.4,0,.2,1), opacity .26s ease';
+  panel.style.top = rect.top+'px'; panel.style.left = rect.left+'px';
+  panel.style.width = rect.width+'px'; panel.style.height = rect.height+'px';
+  panel.style.borderRadius = '50%'; panel.style.opacity = '0';
+  el('timer-scrim').classList.remove('is-open');
+  const cleanup = ()=>{
+    panel.hidden = true;
+    panel.style.transition = ''; panel.style.top = ''; panel.style.left = '';
+    panel.style.width = ''; panel.style.height = ''; panel.style.borderRadius = ''; panel.style.opacity = '';
+  };
+  panel.addEventListener('transitionend', cleanup, {once:true});
+  setTimeout(cleanup, 400);
+}
+document.querySelectorAll('.timer-add-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> timerAdd(parseInt(btn.dataset.add,10)));
+});
+[el('timer-trigger-hdr'), el('timer-trigger-mside')].forEach(btn=>{
+  if(btn) btn.addEventListener('click', ()=> openTimerPanel(btn));
+});
+el('timer-panel-close').addEventListener('click', closeTimerPanel);
+el('timer-scrim').addEventListener('click', closeTimerPanel);
+renderTimerButtons();
 
 // Minimal line-style weather icons (own artwork — inline SVG, no external
 // asset/EPS import), matching the nav icons' stroke style.
