@@ -273,15 +273,15 @@
      button, so the button's vertical center lines up with the time
      specifically instead of the whole two-line block. */
   .hero-clock-toprow{ display:flex; align-items:center; gap:.6rem; }
-  /* Sized in em off its own font-size (set to match .hero-clock-block
-     .clock's font-size exactly, in each of its breakpoints below) so
-     width/height:1em always equals the clock text's height without
-     duplicating clamp/vmin values — the icon, running-time text, and
-     progress ring below are all sized in em too, so they scale together
-     automatically instead of needing their own breakpoint overrides. */
+  /* Same fixed size as every other round icon button in the app
+     (.glass-icon-btn etc. — --tap-min) rather than scaling with the
+     clock text, so it reads as one consistent button size everywhere
+     instead of ballooning to match the big hero clock in calendar view.
+     font-size here only sizes the icon/running-time text (in em, below)
+     — it no longer drives the button's own box size. */
   .timer-trigger{
     position:relative; display:flex; align-items:center; justify-content:center;
-    font-size:2.3rem; width:1em; height:1em; border-radius:50%; border:none; cursor:pointer; flex-shrink:0;
+    font-size:1.4rem; width:var(--tap-min); height:var(--tap-min); border-radius:50%; border:none; cursor:pointer; flex-shrink:0;
     background:rgba(255,255,255,.14); backdrop-filter:blur(20px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(20px) saturate(120%) brightness(1.06);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 4px 14px rgba(0,0,0,.28); color:#fff;
   }
@@ -307,7 +307,6 @@
   .timer-trigger.is-active::before{ opacity:1; }
   .timer-trigger.is-done{ animation:timer-pulse 1s ease-in-out infinite; }
   @keyframes timer-pulse{ 50%{ background:rgba(255,90,90,.55); } }
-  #app[data-view="calendar"] .timer-trigger{ font-size:7.4vmin; }
 
   /* Transparent click-catcher behind the panel so tapping anywhere
      outside it closes it, without dimming the wallpaper underneath —
@@ -682,6 +681,35 @@
   .modal-close-x{ position:absolute; }
   .event-detail-loc{ color:var(--ink-secondary); margin-top:.4rem; }
   .event-detail-time{ font-weight:700; font-size:1.1rem; margin-top:.2rem; }
+
+  /* Add/edit event: same frosted-glass look as the timer panel, and
+     opened with the same FLIP circle->rectangle animation (from the "+"
+     FAB — see openEventPanel()) instead of the plain instant modal
+     every other modal uses. No dark dimming scrim behind it, matching
+     the timer's floating-card feel — just this one modal-overlay's
+     background goes transparent; every other modal keeps the normal
+     dimmed backdrop. Text/inputs/buttons get white-on-glass overrides
+     here since the rest of the app's --ink/--surface-2 tokens assume an
+     opaque light/dark-mode card, not a translucent one sitting over a
+     photo-toned blur. */
+  #modal-event-edit{ background:transparent; }
+  #modal-event-edit .modal{
+    background:rgba(255,255,255,.16); backdrop-filter:blur(28px) saturate(120%) brightness(1.06); -webkit-backdrop-filter:blur(28px) saturate(120%) brightness(1.06);
+    border:1px solid rgba(255,255,255,.28); box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 20px 60px rgba(0,0,0,.45);
+    color:#fff;
+  }
+  #modal-event-edit .modal h2{ color:#fff; }
+  #modal-event-edit .field label{ color:rgba(255,255,255,.75); }
+  #modal-event-edit input[type=text], #modal-event-edit input[type=date], #modal-event-edit input[type=time]{
+    background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.3); color:#fff; color-scheme:dark;
+  }
+  #modal-event-edit input::placeholder{ color:rgba(255,255,255,.5); }
+  #modal-event-edit .toggle-group button{ background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.3); color:#fff; }
+  #modal-event-edit .toggle-group button.is-selected{ background:#fff; color:#171335; border-color:#fff; }
+  #modal-event-edit .avatar-pick.is-selected{ border-color:#fff; }
+  #modal-event-edit .btn{ background:rgba(255,255,255,.16); color:#fff; box-shadow:none; }
+  #modal-event-edit .btn.primary{ background:#fff; color:#171335; }
+  #modal-event-edit .btn.danger{ background:rgba(255,90,90,.6); color:#fff; }
 
   /* Screensaver --------------------------------------------------------- */
   #screensaver{
@@ -1686,9 +1714,9 @@ function renderTimerPanel(){
   }
 }
 
-// The "wallpaper area" to center the panel within: the header's photo
-// when it's visible, or the month sidebar's photo when the header is
-// hidden (landscape month mode has no header — see the toolbar
+// The "wallpaper area" to center the timer panel within: the header's
+// photo when it's visible, or the month sidebar's photo when the header
+// is hidden (landscape month mode has no header — see the toolbar
 // relocation earlier in this file).
 function getWallpaperAreaRect(){
   const header = el('header');
@@ -1698,33 +1726,27 @@ function getWallpaperAreaRect(){
   return header.getBoundingClientRect();
 }
 
-// FLIP-style expand: measure the panel's natural (CSS-defined) size,
-// center that within the current wallpaper area (clamped to stay
-// on-screen), then animate from the trigger button's circular rect out
-// to that centered rectangle. Reversed the same way on close, back to
-// whichever trigger opened it. The centered position/size stays as
-// explicit inline styles for as long as the panel is open (rather than
-// being cleared back to a CSS default afterward) since .timer-panel has
-// no top/left of its own to fall back to — it's always positioned by
-// this function.
-function openTimerPanel(trigger){
-  const panel = el('timer-panel');
-  timerPanelTrigger = trigger;
-  renderTimerPanel();
+// Shared FLIP-style circle->rectangle expand/collapse, used by both the
+// timer panel and the add/edit event panel: measure the panel's natural
+// (CSS-defined) size, ask `getFinalPos` where to center it (each caller
+// centers within a different area — see the two call sites below), then
+// animate from the trigger button's circular rect out to that
+// rectangle. Reversed the same way on close, back to whichever trigger
+// opened it. The final position/size stays as explicit inline styles
+// for as long as the panel is open (rather than being cleared back to a
+// CSS default afterward) since these panels have no top/left of their
+// own to fall back to — they're always positioned by this function.
+function openFlipPanel(panel, scrim, trigger, getFinalPos, borderRadius){
   const startRect = trigger.getBoundingClientRect();
-
   panel.hidden = false;
-  el('timer-scrim').classList.add('is-open');
+  if(scrim) scrim.classList.add('is-open');
   panel.style.transition = 'none';
+  panel.style.position = 'fixed';
   panel.style.top = '0px'; panel.style.left = '0px'; panel.style.width = ''; panel.style.height = ''; panel.style.borderRadius = '';
   panel.style.opacity = '0';
   void panel.offsetWidth;
   const naturalW = panel.offsetWidth, naturalH = panel.offsetHeight;
-
-  const area = getWallpaperAreaRect();
-  const margin = 16;
-  const finalLeft = Math.min(Math.max(area.left + (area.width-naturalW)/2, margin), window.innerWidth - naturalW - margin);
-  const finalTop = Math.min(Math.max(area.top + (area.height-naturalH)/2, margin), window.innerHeight - naturalH - margin);
+  const { left: finalLeft, top: finalTop } = getFinalPos(naturalW, naturalH);
 
   panel.style.top = startRect.top+'px'; panel.style.left = startRect.left+'px';
   panel.style.width = startRect.width+'px'; panel.style.height = startRect.height+'px';
@@ -1734,26 +1756,40 @@ function openTimerPanel(trigger){
     panel.style.transition = 'top .4s cubic-bezier(.22,.9,.32,1), left .4s cubic-bezier(.22,.9,.32,1), width .4s cubic-bezier(.22,.9,.32,1), height .4s cubic-bezier(.22,.9,.32,1), border-radius .4s cubic-bezier(.22,.9,.32,1), opacity .32s ease';
     panel.style.top = finalTop+'px'; panel.style.left = finalLeft+'px';
     panel.style.width = naturalW+'px'; panel.style.height = naturalH+'px';
-    panel.style.borderRadius = '1.6rem'; panel.style.opacity = '1';
+    panel.style.borderRadius = borderRadius; panel.style.opacity = '1';
   });
 }
-function closeTimerPanel(){
-  const panel = el('timer-panel');
+function closeFlipPanel(panel, scrim, trigger){
   if(panel.hidden) return;
-  const trigger = timerPanelTrigger || el('timer-trigger-hdr');
   const rect = trigger.getBoundingClientRect();
   panel.style.transition = 'top .32s cubic-bezier(.4,0,.2,1), left .32s cubic-bezier(.4,0,.2,1), width .32s cubic-bezier(.4,0,.2,1), height .32s cubic-bezier(.4,0,.2,1), border-radius .32s cubic-bezier(.4,0,.2,1), opacity .26s ease';
   panel.style.top = rect.top+'px'; panel.style.left = rect.left+'px';
   panel.style.width = rect.width+'px'; panel.style.height = rect.height+'px';
   panel.style.borderRadius = '50%'; panel.style.opacity = '0';
-  el('timer-scrim').classList.remove('is-open');
+  if(scrim) scrim.classList.remove('is-open');
   const cleanup = ()=>{
     panel.hidden = true;
-    panel.style.transition = ''; panel.style.top = ''; panel.style.left = '';
+    panel.style.transition = ''; panel.style.position = ''; panel.style.top = ''; panel.style.left = '';
     panel.style.width = ''; panel.style.height = ''; panel.style.borderRadius = ''; panel.style.opacity = '';
   };
   panel.addEventListener('transitionend', cleanup, {once:true});
   setTimeout(cleanup, 400);
+}
+
+function openTimerPanel(trigger){
+  timerPanelTrigger = trigger;
+  renderTimerPanel();
+  openFlipPanel(el('timer-panel'), el('timer-scrim'), trigger, (naturalW, naturalH)=>{
+    const area = getWallpaperAreaRect();
+    const margin = 16;
+    return {
+      left: Math.min(Math.max(area.left + (area.width-naturalW)/2, margin), window.innerWidth - naturalW - margin),
+      top: Math.min(Math.max(area.top + (area.height-naturalH)/2, margin), window.innerHeight - naturalH - margin),
+    };
+  }, '1.6rem');
+}
+function closeTimerPanel(){
+  closeFlipPanel(el('timer-panel'), el('timer-scrim'), timerPanelTrigger || el('timer-trigger-hdr'));
 }
 document.querySelectorAll('.timer-add-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> timerAdd(parseInt(btn.dataset.add,10)));
@@ -2265,7 +2301,20 @@ function openEventEditModal(event){
   const end = event && event.end_at ? new Date(event.end_at) : new Date(start.getTime()+60*60000);
   el('event-end-input').value = `${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
 
-  el('modal-event-edit').classList.add('is-open');
+  openEventPanel();
+}
+// Always expands from the "+" FAB, even when this modal was reached via
+// the edit path (tapping an existing event) rather than the FAB itself
+// — there's no equivalent circular trigger for that path, and one
+// consistent origin point reads better than the panel appearing to
+// originate from wherever in the day/month grid the event pill was.
+function openEventPanel(){
+  openFlipPanel(el('modal-event-edit').querySelector('.modal'), el('modal-event-edit'), el('fab-add-event'),
+    (naturalW, naturalH) => ({ left:(window.innerWidth-naturalW)/2, top:(window.innerHeight-naturalH)/2 }),
+    '1.6rem');
+}
+function closeEventPanel(){
+  closeFlipPanel(el('modal-event-edit').querySelector('.modal'), el('modal-event-edit'), el('fab-add-event'));
 }
 el('fab-add-event').addEventListener('click', ()=> openEventEditModal(null));
 document.querySelectorAll('#event-allday-toggle button').forEach(btn=>{
@@ -2275,7 +2324,7 @@ document.querySelectorAll('#event-allday-toggle button').forEach(btn=>{
     el('event-time-fields').style.display = btn.dataset.val==='allday' ? 'none' : '';
   });
 });
-el('event-edit-cancel-btn').addEventListener('click', ()=> el('modal-event-edit').classList.remove('is-open'));
+el('event-edit-cancel-btn').addEventListener('click', closeEventPanel);
 el('event-edit-save-btn').addEventListener('click', async ()=>{
   const title = el('event-title-input').value.trim();
   const dateStr = el('event-date-input').value;
@@ -2302,13 +2351,13 @@ el('event-edit-save-btn').addEventListener('click', async ()=>{
   };
   if(editingEventId) await db.updateEvent(editingEventId, payload);
   else await db.addEvent(payload);
-  el('modal-event-edit').classList.remove('is-open');
+  closeEventPanel();
   loadCalendarData();
 });
 el('event-delete-btn').addEventListener('click', ()=>{
   confirmDialog('Delete this event?', "This only removes it here — it won't affect Google Calendar.", async ()=>{
     await db.deleteEvent(editingEventId);
-    el('modal-event-edit').classList.remove('is-open');
+    closeEventPanel();
     loadCalendarData();
   });
 });
@@ -2729,7 +2778,14 @@ el('confirm-ok-btn').addEventListener('click', ()=>{
   if(confirmAction) confirmAction();
 });
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
-  ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('is-open'); });
+  ov.addEventListener('click', e=>{
+    if(e.target!==ov) return;
+    // The add/edit event panel animates closed via closeEventPanel()
+    // (see openEventPanel()) rather than the plain instant hide every
+    // other modal uses.
+    if(ov.id==='modal-event-edit') closeEventPanel();
+    else ov.classList.remove('is-open');
+  });
 });
 
 /* =========================================================================
