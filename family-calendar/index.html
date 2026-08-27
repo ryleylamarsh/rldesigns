@@ -743,6 +743,57 @@
   #modal-event-edit .btn.primary{ background:#fff; color:#171335; }
   #modal-event-edit .btn.danger{ background:rgba(255,90,90,.6); color:#fff; }
 
+  /* Date/time pickers ---------------------------------------------------
+     Popovers opened by tapping a .picker-field (see openDatePicker()/
+     openTimePicker()), replacing the native <input type=date>/[type=time]
+     — those render a fussy, hard-to-hit-precisely OS control that's a
+     poor fit for touch. Sit above the (already glass) event modal on a
+     mostly-opaque dark card rather than another blur layer, so a grid of
+     many small tap targets stays legible instead of stacking translucency
+     on translucency. */
+  #picker-scrim{ position:fixed; inset:0; z-index:65; display:none; }
+  #picker-scrim.is-open{ display:block; }
+  .date-picker-panel, .time-picker-panel{
+    position:fixed; z-index:66; top:50%; left:50%; width:min(22rem, 88vw);
+    background:#1b1930; border:1px solid rgba(255,255,255,.16); border-radius:1.4rem;
+    padding:1.1rem 1.2rem 1.3rem; box-shadow:0 20px 60px rgba(0,0,0,.5); color:#fff;
+    transform:translate(-50%,-50%) scale(.92); opacity:0; pointer-events:none;
+    transition:transform .22s cubic-bezier(.22,.9,.32,1), opacity .18s ease;
+  }
+  .date-picker-panel.is-open, .time-picker-panel.is-open{
+    transform:translate(-50%,-50%) scale(1); opacity:1; pointer-events:auto;
+  }
+  .date-picker-panel[hidden], .time-picker-panel[hidden]{ display:none; }
+  .picker-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.7rem; }
+  .picker-head-label{ font-weight:800; font-size:1.05rem; }
+  .picker-dow-row{ display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:.3rem; }
+  .picker-dow-row span{ text-align:center; font-size:.68rem; font-weight:700; color:rgba(255,255,255,.5); text-transform:uppercase; }
+  .picker-day-grid{ display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:2.6rem; gap:.15rem; }
+  .picker-day-grid button{
+    border:none; background:none; color:#fff; font-weight:600; font-size:.92rem; border-radius:.7rem; cursor:pointer;
+  }
+  .picker-day-grid button:disabled{ color:rgba(255,255,255,.22); cursor:default; }
+  .picker-day-grid button.is-today{ box-shadow:inset 0 0 0 2px rgba(255,255,255,.35); }
+  .picker-day-grid button.is-selected{ background:#fff; color:#171335; }
+
+  .tp-summary{ text-align:center; font-size:1.6rem; font-weight:800; margin-bottom:1rem; font-variant-numeric:tabular-nums; }
+  .tp-section-label{ font-size:.72rem; font-weight:700; color:rgba(255,255,255,.55); text-transform:uppercase; margin:0 0 .4rem; }
+  .tp-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:.45rem; margin-bottom:1rem; }
+  .tp-grid button{
+    border:none; background:rgba(255,255,255,.1); color:#fff; font-weight:700; font-size:.92rem;
+    border-radius:.7rem; padding:.6rem 0; cursor:pointer; font-variant-numeric:tabular-nums;
+  }
+  .tp-grid button.is-selected{ background:#fff; color:#171335; }
+  .tp-ampm-row{ display:flex; gap:.6rem; margin-bottom:1.1rem; }
+  .tp-ampm-row button{
+    flex:1; border:none; background:rgba(255,255,255,.1); color:#fff; font-weight:700;
+    border-radius:.8rem; padding:.7rem 0; cursor:pointer;
+  }
+  .tp-ampm-row button.is-selected{ background:#fff; color:#171335; }
+  .date-picker-panel .modal-actions, .time-picker-panel .modal-actions{ margin-top:0; }
+  .date-picker-panel .btn, .time-picker-panel .btn{ background:rgba(255,255,255,.12); color:#fff; box-shadow:none; }
+  .date-picker-panel .btn.primary, .time-picker-panel .btn.primary{ background:#fff; color:#171335; }
+
   /* Screensaver --------------------------------------------------------- */
   #screensaver{
     position:fixed; inset:0; z-index:100; background:#000; opacity:0; pointer-events:none;
@@ -2398,13 +2449,13 @@ function openEventEditModal(event){
 
   const start = event ? new Date(event.start_at) : new Date();
   if(!event) start.setHours(9,0,0,0);
-  el('event-date-input').value = localDateStr(start);
+  setPickerFieldDate(el('event-date-input'), localDateStr(start));
   const isAllDay = event ? !!event.all_day : false;
   document.querySelectorAll('#event-allday-toggle button').forEach(b=> b.classList.toggle('is-selected', b.dataset.val === (isAllDay?'allday':'timed')));
   el('event-time-fields').style.display = isAllDay ? 'none' : '';
-  el('event-start-input').value = `${pad2(start.getHours())}:${pad2(start.getMinutes())}`;
+  setPickerFieldTime(el('event-start-input'), `${pad2(start.getHours())}:${pad2(start.getMinutes())}`);
   const end = event && event.end_at ? new Date(event.end_at) : new Date(start.getTime()+60*60000);
-  el('event-end-input').value = `${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
+  setPickerFieldTime(el('event-end-input'), `${pad2(end.getHours())}:${pad2(end.getMinutes())}`);
 
   openEventPanel();
 }
@@ -2421,6 +2472,119 @@ function openEventPanel(){
 function closeEventPanel(){
   closeFlipPanel(el('modal-event-edit').querySelector('.modal'), el('modal-event-edit'), el('fab-add-event'));
 }
+
+/* =========================================================================
+   Date/time pickers — touch-friendly stand-ins for input[type=date]/
+   [type=time], opened by tapping a .picker-field button. Each field keeps
+   its real value in data-value (YYYY-MM-DD for date, 24h HH:MM for time)
+   and a human-formatted display string as its own text content.
+   ========================================================================= */
+function setPickerFieldDate(fieldEl, dateStr){
+  fieldEl.dataset.value = dateStr;
+  const [y,mo,d] = dateStr.split('-').map(Number);
+  fieldEl.textContent = new Date(y,mo-1,d).toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
+}
+function setPickerFieldTime(fieldEl, hhmm){
+  fieldEl.dataset.value = hhmm;
+  const [h,m] = hhmm.split(':').map(Number);
+  const d = new Date(); d.setHours(h,m,0,0);
+  fieldEl.textContent = fmtTime(d);
+}
+// Simple fade+scale (not the FLIP circle->rectangle treatment the timer/
+// event panels use) — these are secondary popovers opened from within an
+// already-open glass panel, not top-level features with their own trigger
+// button to expand from.
+function showPickerPanel(panel){
+  el('picker-scrim').classList.add('is-open');
+  panel.hidden = false;
+  void panel.offsetWidth; // force layout so is-open's transition actually animates
+  panel.classList.add('is-open');
+}
+function hidePickerPanel(panel){
+  panel.classList.remove('is-open');
+  el('picker-scrim').classList.remove('is-open');
+  setTimeout(()=>{ panel.hidden = true; }, 220);
+}
+
+let datePickerField = null, datePickerViewDate = new Date();
+function openDatePicker(fieldEl){
+  datePickerField = fieldEl;
+  const [y,mo] = (fieldEl.dataset.value || localDateStr()).split('-').map(Number);
+  datePickerViewDate = new Date(y, mo-1, 1);
+  renderDatePickerGrid();
+  showPickerPanel(el('date-picker-panel'));
+}
+function closeDatePicker(){ hidePickerPanel(el('date-picker-panel')); }
+function renderDatePickerGrid(){
+  const mo = datePickerViewDate.getMonth();
+  el('dp-month-label').textContent = datePickerViewDate.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+  const gridStart = startOfWeek(new Date(datePickerViewDate.getFullYear(), mo, 1));
+  const selectedStr = datePickerField ? datePickerField.dataset.value : '';
+  const todayStr = localDateStr();
+  const grid = el('dp-grid'); grid.innerHTML = '';
+  for(let i=0;i<42;i++){
+    const day = addDays(gridStart, i);
+    const dStr = localDateStr(day);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = day.getDate();
+    if(day.getMonth()!==mo) btn.disabled = true;
+    if(dStr===todayStr) btn.classList.add('is-today');
+    if(dStr===selectedStr) btn.classList.add('is-selected');
+    btn.addEventListener('click', ()=>{ setPickerFieldDate(datePickerField, dStr); closeDatePicker(); });
+    grid.appendChild(btn);
+  }
+}
+el('dp-prev').addEventListener('click', ()=>{ datePickerViewDate.setMonth(datePickerViewDate.getMonth()-1); renderDatePickerGrid(); });
+el('dp-next').addEventListener('click', ()=>{ datePickerViewDate.setMonth(datePickerViewDate.getMonth()+1); renderDatePickerGrid(); });
+
+let timePickerField = null, timePickerPending = { h12:9, m:0, ampm:'AM' };
+function openTimePicker(fieldEl){
+  timePickerField = fieldEl;
+  const [h24,m] = (fieldEl.dataset.value || '09:00').split(':').map(Number);
+  const ampm = h24>=12 ? 'PM' : 'AM';
+  let h12 = h24%12; if(h12===0) h12 = 12;
+  timePickerPending = { h12, m, ampm };
+  renderTimePicker();
+  showPickerPanel(el('time-picker-panel'));
+}
+function closeTimePicker(){ hidePickerPanel(el('time-picker-panel')); }
+function renderTimePicker(){
+  const { h12, m, ampm } = timePickerPending;
+  el('tp-summary').textContent = `${h12}:${pad2(m)} ${ampm}`;
+  const hourGrid = el('tp-hour-grid'); hourGrid.innerHTML = '';
+  for(let h=1; h<=12; h++){
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = h;
+    if(h===h12) btn.classList.add('is-selected');
+    btn.addEventListener('click', ()=>{ timePickerPending.h12 = h; renderTimePicker(); });
+    hourGrid.appendChild(btn);
+  }
+  const minGrid = el('tp-min-grid'); minGrid.innerHTML = '';
+  for(let mm=0; mm<60; mm+=5){
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = pad2(mm);
+    if(mm===m) btn.classList.add('is-selected');
+    btn.addEventListener('click', ()=>{ timePickerPending.m = mm; renderTimePicker(); });
+    minGrid.appendChild(btn);
+  }
+  document.querySelectorAll('#tp-ampm-row button').forEach(b=> b.classList.toggle('is-selected', b.dataset.val===ampm));
+}
+document.querySelectorAll('#tp-ampm-row button').forEach(b=>{
+  b.addEventListener('click', ()=>{ timePickerPending.ampm = b.dataset.val; renderTimePicker(); });
+});
+el('tp-cancel-btn').addEventListener('click', closeTimePicker);
+el('tp-done-btn').addEventListener('click', ()=>{
+  const { h12, m, ampm } = timePickerPending;
+  let h24 = h12%12; if(ampm==='PM') h24 += 12;
+  setPickerFieldTime(timePickerField, `${pad2(h24)}:${pad2(m)}`);
+  closeTimePicker();
+});
+el('picker-scrim').addEventListener('click', ()=>{ closeDatePicker(); closeTimePicker(); });
+el('event-date-input').addEventListener('click', ()=> openDatePicker(el('event-date-input')));
+el('event-start-input').addEventListener('click', ()=> openTimePicker(el('event-start-input')));
+el('event-end-input').addEventListener('click', ()=> openTimePicker(el('event-end-input')));
+
 el('fab-add-event').addEventListener('click', ()=> openEventEditModal(null));
 document.querySelectorAll('#event-allday-toggle button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -2432,7 +2596,7 @@ document.querySelectorAll('#event-allday-toggle button').forEach(btn=>{
 el('event-edit-cancel-btn').addEventListener('click', closeEventPanel);
 el('event-edit-save-btn').addEventListener('click', async ()=>{
   const title = el('event-title-input').value.trim();
-  const dateStr = el('event-date-input').value;
+  const dateStr = el('event-date-input').dataset.value;
   if(!title || !dateStr) return;
   const [y,mo,d] = dateStr.split('-').map(Number);
   const isAllDay = el('event-allday-toggle').querySelector('.is-selected').dataset.val === 'allday';
@@ -2441,8 +2605,8 @@ el('event-edit-save-btn').addEventListener('click', async ()=>{
     startAt = new Date(y,mo-1,d,0,0,0,0);
     endAt = null;
   } else {
-    const [sh,sm] = el('event-start-input').value.split(':').map(Number);
-    const [eh,em] = el('event-end-input').value.split(':').map(Number);
+    const [sh,sm] = el('event-start-input').dataset.value.split(':').map(Number);
+    const [eh,em] = el('event-end-input').dataset.value.split(':').map(Number);
     startAt = new Date(y,mo-1,d,sh||0,sm||0,0,0);
     endAt = new Date(y,mo-1,d,eh||0,em||0,0,0);
   }
