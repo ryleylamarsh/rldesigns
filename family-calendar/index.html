@@ -472,8 +472,13 @@
     padding-bottom:.6rem; margin-bottom:.1rem; border-bottom:1px solid var(--gridline);
   }
   .day-col .col-head .dnum{ font-size:3rem; font-weight:800; line-height:1; color:var(--ink); }
-  .day-col .col-head .dname{ font-size:.78rem; color:var(--ink); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
+  .day-col .col-head .dname{ font-size:.88rem; color:var(--ink); font-weight:700; text-transform:uppercase; letter-spacing:.02em; }
   .day-col .col-events{ display:flex; flex-direction:column; gap:.5rem; overflow-y:auto; min-height:0; }
+  /* Week view reads from across the room — a notch larger than the shared
+     compact row used in lists/modals */
+  .day-col .event-row .ername{ font-size:.92rem; }
+  .day-col .event-row .ertime{ font-size:.8rem; }
+  .day-col .event-row .er-recur-icon{ width:.78rem; height:.78rem; }
 
   /* Shared compact event row — text directly on the flat background, a
      colored bar carries identity instead of a filled pill/card */
@@ -510,7 +515,7 @@
     border-top:1px solid var(--gridline); border-left:1px solid var(--gridline);
     position:absolute; inset:0; width:100%; height:100%; background:var(--bg);
   }
-  .month-dow{ text-align:center; font-size:.68rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding:.4rem 0; }
+  .month-dow{ text-align:center; font-size:.9rem; font-weight:700; color:var(--ink-muted); text-transform:uppercase; padding:.4rem 0; }
   .month-cell{
     border-right:1px solid var(--gridline); border-bottom:1px solid var(--gridline); display:flex; flex-direction:column;
     align-items:flex-start; padding:.4rem .45rem; cursor:pointer; gap:.2rem; min-height:0; min-width:0; overflow:hidden;
@@ -552,10 +557,10 @@
   }
   .month-cell.is-today .mnum{ color:var(--accent); }
   .month-cell.is-other-month{ opacity:.35; }
-  .month-cell .mnum{ font-weight:700; font-size:.82rem; flex-shrink:0; }
-  .month-cell .mpills{ display:flex; flex-direction:column; gap:2px; width:100%; overflow:hidden; }
-  .month-cell .mpill{ font-size:.6rem; font-weight:700; color:#fff; border-radius:4px; padding:1px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .month-cell .mmore{ font-size:.58rem; color:var(--ink-muted); font-weight:700; padding-left:5px; }
+  .month-cell .mnum{ font-weight:700; font-size:1.25rem; flex-shrink:0; }
+  .month-cell .mpills{ display:flex; flex-direction:column; gap:3px; width:100%; overflow:hidden; }
+  .month-cell .mpill{ font-size:.95rem; font-weight:700; color:#fff; border-radius:5px; padding:2px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .month-cell .mmore{ font-size:.82rem; color:var(--ink-muted); font-weight:700; padding-left:5px; }
 
   /* Calendar: month, landscape only — a left wallpaper sidebar (the same
      night-sky/aurora/pine art as the header) carrying clock, date,
